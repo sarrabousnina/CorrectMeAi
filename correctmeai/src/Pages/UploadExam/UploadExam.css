@@ -1,0 +1,142 @@
+/* Wraps the entire upload UI and centers it */
+.page-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+    box-sizing: border-box;
+    flex-direction: column;
+}
+.header {
+    width: 100%;
+    min-height: 220px;
+    border: 2px dashed royalblue;
+    border-radius: 10px;
+    overflow-y: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 8px;
+}
+
+.header-gallery {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.header-image-multiple {
+    width: 90px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Remove the preview grid below the cloud */
+.preview-grid {
+    display: none;
+}
+
+/* Upload container styling */
+.container {
+    width: 320px;
+    border-radius: 10px;
+    box-shadow: 4px 4px 30px rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 110, 255, 0.041);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Header area (drop zone + browse click) */
+.header {
+    width: 100%;
+    border: 2px dashed royalblue;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.header:hover {
+    background-color: rgba(65, 105, 225, 0.05);
+}
+
+.header svg {
+    height: 80px;
+    margin-bottom: 5px;
+}
+
+.header p {
+    color: black;
+    font-size: 14px;
+}
+
+/* Footer bar with file name + delete icon */
+.footer {
+    background-color: rgba(0, 110, 255, 0.075);
+    width: 100%;
+    height: 40px;
+    padding: 8px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: black;
+    margin-top: 10px;
+}
+
+.footer svg {
+    fill: royalblue;
+    background-color: rgba(70, 66, 66, 0.103);
+    border-radius: 50%;
+    padding: 2px;
+    cursor: pointer;
+    box-shadow: 0 2px 30px rgba(0, 0, 0, 0.205);
+    transition: transform 0.2s;
+}
+
+.footer svg:hover {
+    transform: scale(1.1);
+}
+
+.footer label {
+    flex: 1;
+    text-align: center;
+    cursor: pointer;
+    color: black;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Hidden file input */
+#file {
+    display: none;
+}
+
+/* Grid for image previews */
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.preview-grid img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    object-fit: cover;
+}

@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReactSortable } from "react-sortablejs";
+import ShaderBackground from "../ShaderBackground";
+
 import "./UploadExam.css";
 
 const UploadExam = () => {
@@ -85,7 +87,9 @@ const UploadExam = () => {
     };
 
     return (
-        <div className="page-wrapper">
+        <>
+            <ShaderBackground />
+            <div className="page-wrapper">
             <div className="container" onDragOver={handleDragOver} onDrop={handleDrop}>
                 <div
                     className="header full-gallery"
@@ -196,6 +200,10 @@ const UploadExam = () => {
                 {error && <p style={{ color: "red", marginTop: "10px" }}>❌ {error}</p>}
             </div>
         </div>
+
+        </>
+
+
     );
 };
 

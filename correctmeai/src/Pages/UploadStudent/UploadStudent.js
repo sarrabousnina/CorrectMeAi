@@ -1,9 +1,9 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReactSortable } from "react-sortablejs";
-import "./UploadExam.css";
+import "./UploadStudent.css";
 
-const UploadExam = () => {
+const UploadStudent = () => {
     const [filesWithIndex, setFilesWithIndex] = useState([]);
     const [extractedText, setExtractedText] = useState("");
     const [loading, setLoading] = useState(false);
@@ -29,34 +29,37 @@ const UploadExam = () => {
         setLoading(true);
         setError("");
 
-        const finalOrder = [...filesWithIndex];
-        let finalText = "";
+        const item = filesWithIndex[0]; // just use the first file for now
+        const formData = new FormData();
+        formData.append("files", item.file);
 
-        for (let item of finalOrder) {
-            const formData = new FormData();
-            formData.append("files", item.file);
+        try {
+            const response = await fetch("http://localhost:5001/extract-answers", {
+                method: "POST",
+                body: formData,
+            });
 
-            try {
-                const response = await fetch("http://localhost:5000/extract", {
-                    method: "POST",
-                    body: formData,
+            const data = await response.json();
+
+            if (response.ok && data.answers) {
+                // ✅ Navigate with structured answers
+                navigate("/Correction", {
+                    state: {
+                        answers: data.answers,
+                        studentFile: item.file.name,
+                    },
                 });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    finalText += `📄 From: ${item.file.name}\n${data.text}\n\n`;
-                } else {
-                    finalText += `❌ Error with ${item.file.name}: ${data.error || "Failed to extract"}\n\n`;
-                }
-            } catch (err) {
-                finalText += `❌ Server error with ${item.file.name}\n\n`;
+            } else {
+                alert("❌ Failed to extract answers. Please check the image.");
             }
+        } catch (err) {
+            console.error("❌ Server error:", err);
+            alert("❌ Server error while extracting answers.");
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
-        navigate("/key", { state: { extractedText: finalText } });
     };
+
 
     const handleClear = () => {
         setFilesWithIndex([]);
@@ -199,4 +202,4 @@ const UploadExam = () => {
     );
 };
 
-export default UploadExam;
+export default UploadStudent;

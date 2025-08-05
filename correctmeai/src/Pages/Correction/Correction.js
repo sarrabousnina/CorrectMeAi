@@ -1,18 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const Correction = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const studentName = location.state?.studentName || "";
+    const [studentId, setStudentId] = useState(studentName);
+
+
     const answers = location.state?.answers || null;
     const studentFile = location.state?.studentFile || "unknown file";
 
-    const [studentId, setStudentId] = useState("");
     const [examId, setExamId] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [score, setScore] = useState(null);
     const [feedback, setFeedback] = useState("");
+
+    // Fetch the latest exam on component mount
+    useEffect(() => {
+        const fetchLatestExam = async () => {
+            try {
+                const res = await fetch("http://localhost:5001/api/exams/latest");
+                const data = await res.json();
+                if (res.ok) {
+                    setExamId(data.id);
+                } else {
+                    console.error("❌ Failed to fetch latest exam:", data.error);
+                }
+            } catch (err) {
+                console.error("❌ Network error while fetching latest exam", err);
+            }
+        };
+
+        fetchLatestExam();
+    }, []);
 
     const handleSaveToDB = async () => {
         if (!studentId || !examId) {
@@ -115,10 +137,15 @@ const Correction = () => {
                 />
                 <input
                     type="text"
-                    placeholder="📝 Exam ID (Mongo ObjectId)"
                     value={examId}
-                    onChange={(e) => setExamId(e.target.value)}
-                    style={{ padding: "8px", width: "100%" }}
+                    readOnly
+                    placeholder="📝 Auto-linked to last uploaded exam"
+                    style={{
+                        padding: "8px",
+                        width: "100%",
+                        backgroundColor: "#e9ecef",
+                        cursor: "not-allowed",
+                    }}
                 />
             </div>
 

@@ -42,11 +42,12 @@ const UploadStudent = () => {
             const data = await response.json();
 
             if (response.ok && data.answers) {
-                // ✅ Navigate with structured answers
+                // ✅ Navigate with structured answers + extracted name
                 navigate("/Correction", {
                     state: {
                         answers: data.answers,
                         studentFile: item.file.name,
+                        studentName: data.student_name || "Unknown Student",
                     },
                 });
             } else {
@@ -59,6 +60,7 @@ const UploadStudent = () => {
             setLoading(false);
         }
     };
+
 
 
     const handleClear = () => {

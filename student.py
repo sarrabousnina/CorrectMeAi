@@ -4,6 +4,7 @@ import json
 import re
 import requests
 from bson import ObjectId
+from bson.errors import InvalidId
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
@@ -22,6 +23,7 @@ OPENROUTER_API_KEY = "sk-or-v1-0131b5947baf6d23e892602a6956cc2dbf00a1d2c20391398
 OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "qwen/qwen2-72b-instruct"
 
+
 @app.route("/extract-answers", methods=["POST"])
 def extract_answers():
     if 'files' not in request.files:
@@ -37,15 +39,16 @@ def extract_answers():
             {
                 "role": "system",
                 "content": (
-                    "You are a helpful assistant that extracts handwritten answers from student exam images. "
-                    "For multiple-choice questions, return options with one marked as selected. "
-                    "For fill-in-the-blank and short-answer questions, extract student responses."
+                    "You are a helpful assistant that extracts handwritten answers from student exam images.\n"
+                    "You MUST return both the student's name and answers as a JSON object.\n\n"
+                    "Return JSON like:\n"
+                    "{ \"student_name\": \"Ahmed Ben Salah\", \"answers\": { \"Q1\": \"B\", \"Q2\": \"Photosynthesis\" } }"
                 )
             },
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Extract the answers from this exam image."},
+                    {"type": "text", "text": "Extract the student name and answers from this exam image."},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
                 ]
             }
@@ -65,16 +68,21 @@ def extract_answers():
         response.raise_for_status()
         content = response.json()["choices"][0]["message"]["content"]
 
-        # Try parsing content as JSON directly
-        try:
-            structured_answers = json.loads(content)
-        except json.JSONDecodeError:
-            structured_answers = {"answers": content.strip()}
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        json_data = json.loads(match.group(0)) if match else {"answers": content.strip()}
 
-        return jsonify(structured_answers)
+        student_name = json_data.get("student_name", "Unknown Student")
+        answers = json_data.get("answers", json_data)
+
+        return jsonify({
+            "student_name": student_name,
+            "answers": answers
+        })
 
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
+    except json.JSONDecodeError:
+        return jsonify({"error": "Failed to parse model output as JSON", "raw": content}), 500
 
 
 @app.route("/api/submit-student", methods=["POST"])
@@ -95,7 +103,12 @@ def submit_student():
 
 @app.route("/api/score-submission/<submission_id>", methods=["POST"])
 def score_submission(submission_id):
-    submission = submissions_collection.find_one({"_id": ObjectId(submission_id)})
+    try:
+        object_id = ObjectId(submission_id)
+    except InvalidId:
+        return jsonify({"error": "Invalid submission ID"}), 400
+
+    submission = submissions_collection.find_one({"_id": object_id})
     if not submission:
         return jsonify({"error": "Submission not found"}), 404
 
@@ -143,7 +156,7 @@ def score_submission(submission_id):
         result = json.loads(match.group(0))
 
         submissions_collection.update_one(
-            {"_id": ObjectId(submission_id)},
+            {"_id": object_id},
             {"$set": {"score": result["score"], "feedback": result["feedback"]}}
         )
 
@@ -151,6 +164,21 @@ def score_submission(submission_id):
 
     except Exception as e:
         return jsonify({"error": str(e), "raw": response.text if 'response' in locals() else ""}), 500
+
+
+@app.route("/api/exams/latest", methods=["GET"])
+def get_latest_exam():
+    try:
+        latest_exam = exams_collection.find_one(sort=[("_id", -1)])
+        if latest_exam:
+            return jsonify({
+                "id": str(latest_exam["_id"]),
+                "title": latest_exam.get("title", "Untitled Exam")
+            }), 200
+        else:
+            return jsonify({"error": "No exams found."}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

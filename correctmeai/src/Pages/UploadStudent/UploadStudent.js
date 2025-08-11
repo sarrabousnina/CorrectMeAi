@@ -3,16 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { ReactSortable } from "react-sortablejs";
 import "./UploadStudent.css";
 
-const UploadStudent = () => {
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5001";
+
+export default function UploadStudent() {
     const [filesWithIndex, setFilesWithIndex] = useState([]);
-    const [extractedText, setExtractedText] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
     const handleFileChange = (event) => {
-        const selectedFiles = Array.from(event.target.files);
+        const selectedFiles = Array.from(event.target.files || []);
         const newFiles = selectedFiles.map((file, idx) => ({
             id: `${file.name}-${Date.now()}-${idx}`,
             file,
@@ -20,7 +21,26 @@ const UploadStudent = () => {
             order: idx + 1,
         }));
         setFilesWithIndex(newFiles);
-        setExtractedText("");
+        setError("");
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const droppedFiles = Array.from(event.dataTransfer.files || []);
+        const newFiles = droppedFiles.map((file, idx) => ({
+            id: `${file.name}-${Date.now()}-${idx}`,
+            file,
+            preview: URL.createObjectURL(file),
+            order: idx + 1,
+        }));
+        setFilesWithIndex(newFiles);
+        setError("");
+    };
+
+    const handleClear = () => {
+        filesWithIndex.forEach((f) => URL.revokeObjectURL(f.preview));
+        setFilesWithIndex([]);
         setError("");
     };
 
@@ -29,65 +49,60 @@ const UploadStudent = () => {
         setLoading(true);
         setError("");
 
-        const item = filesWithIndex[0]; // ✅ keep using only the first file
-        const formData = new FormData();
-        formData.append("files", item.file);
-
         try {
-            const response = await fetch("http://localhost:5001/extract-answers", {
+            // 1) OCR the first page (backend /extract-answers currently accepts ONE file)
+            const first = filesWithIndex[0];
+            const fd = new FormData();
+            fd.append("files", first.file);
+
+            const ocrRes = await fetch(`${API_BASE}/extract-answers`, {
                 method: "POST",
-                body: formData,
+                body: fd,
             });
+            const ocr = await ocrRes.json();
+            if (!ocrRes.ok) throw new Error(ocr?.error || "Failed to extract answers.");
 
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data?.error || "Failed to extract answers.");
+            const student =
+                ocr.student_name || ocr.student_id || "Unknown Student";
+            const answers =
+                ocr.answers || ocr.answers_structured || {};
+
+            // 2) Get latest exam
+            const exRes = await fetch(`${API_BASE}/api/exams/latest`);
+            const latest = await exRes.json();
+            if (!exRes.ok || !latest?.id) {
+                throw new Error(latest?.error || "No latest exam found.");
             }
 
-            // ✅ Go directly to Result
-            // Use submission_id if your backend returns it; otherwise fall back to latest by student
-            if (data.submission_id) {
-                navigate(`/result/${data.submission_id}`);
-            } else {
-                const student = data.student_id || data.student_name || "Unknown Student";
-                navigate(`/result?student=${encodeURIComponent(student)}`);
+            // 3) Save submission to Mongo
+            const saveRes = await fetch(`${API_BASE}/api/submit-student`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    student_id: student,
+                    exam_id: latest.id,                 // string ObjectId -> server casts to ObjectId
+                    answers_structured: answers,
+                }),
+            });
+            const saved = await saveRes.json();
+            if (!saveRes.ok || !saved?.submission_id) {
+                throw new Error(saved?.error || "Failed to save submission.");
             }
-        } catch (err) {
-            console.error("❌ Server error:", err);
-            setError(err.message || "Upload failed.");
-            alert(`❌ ${err.message || "Upload failed."}`);
+
+            // 4) Navigate to result by id (reliable)
+            navigate(`/result/${saved.submission_id}`);
+        } catch (e) {
+            console.error(e);
+            setError(e.message || "Upload failed.");
+            alert(`❌ ${e.message || "Upload failed."}`);
         } finally {
             setLoading(false);
         }
     };
 
-
-
-
-    const handleClear = () => {
-        setFilesWithIndex([]);
-        setExtractedText("");
-        setError("");
-    };
-
-    const handleDragOver = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-    };
-
-    const handleDrop = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const droppedFiles = Array.from(event.dataTransfer.files);
-        const newFiles = droppedFiles.map((file, idx) => ({
-            id: `${file.name}-${Date.now()}-${idx}`,
-            file,
-            preview: URL.createObjectURL(file),
-            order: idx + 1,
-        }));
-        setFilesWithIndex(newFiles);
-        setExtractedText("");
-        setError("");
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     return (
@@ -112,15 +127,11 @@ const UploadStudent = () => {
                         </>
                     ) : (
                         <>
-                            <p style={{ textAlign: "center", fontSize: "14px", marginBottom: "8px", color: "#333" }}>
+                            <p style={{ textAlign: "center", fontSize: 14, marginBottom: 8, color: "#333" }}>
                                 🟰 Drag the images to reorder them before submitting
                             </p>
 
-                            <ReactSortable
-                                list={filesWithIndex}
-                                setList={setFilesWithIndex}
-                                className="header-gallery"
-                            >
+                            <ReactSortable list={filesWithIndex} setList={setFilesWithIndex} className="header-gallery">
                                 {filesWithIndex.map((item, index) => (
                                     <div
                                         key={item.id}
@@ -128,11 +139,7 @@ const UploadStudent = () => {
                                         style={{ textAlign: "center", cursor: "grab", position: "relative" }}
                                     >
                                         <div className="image-index">{index + 1}</div>
-                                        <img
-                                            src={item.preview}
-                                            alt={`Image ${index + 1}`}
-                                            className="header-image-multiple"
-                                        />
+                                        <img src={item.preview} alt={`Image ${index + 1}`} className="header-image-multiple" />
                                     </div>
                                 ))}
                             </ReactSortable>
@@ -141,8 +148,7 @@ const UploadStudent = () => {
                 </div>
 
                 <div className="footer">
-                    <svg fill="#000000" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"
-                         style={{ width: "24px", height: "24px" }}>
+                    <svg fill="#000000" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style={{ width: 24, height: 24 }}>
                         <path d="M15.331 6H8.5v20h15V14.154h-8.169z" />
                         <path d="M18.153 6h-.009v5.342H23.5v-.002z" />
                     </svg>
@@ -151,25 +157,21 @@ const UploadStudent = () => {
                         {filesWithIndex.length > 0 ? `${filesWithIndex.length} file(s) selected` : "Not selected file"}
                     </label>
 
-                    <span
-                        onClick={handleClear}
-                        style={{ cursor: "pointer", paddingLeft: "8px" }}
-                        title="Clear selection"
-                    >
-                        <svg viewBox="0 0 24 24" fill="none" width="24px" height="24px" xmlns="http://www.w3.org/2000/svg">
-                            <path
-                                d="M5.16565 10.1534C5.07629 8.99181 5.99473 8 7.15975 8H16.8402C18.0053 8 18.9237 8.9918 18.8344 10.1534L18.142 19.1534C18.0619 20.1954 17.193 21 16.1479 21H7.85206C6.80699 21 5.93811 20.1954 5.85795 19.1534L5.16565 10.1534Z"
-                                stroke="#000000"
-                                strokeWidth="2"
-                            />
-                            <path d="M19.5 5H4.5" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
-                            <path
-                                d="M10 3C10 2.44772 10.4477 2 11 2H13C13.5523 2 14 2.44772 14 3V5H10V3Z"
-                                stroke="#000000"
-                                strokeWidth="2"
-                            />
-                        </svg>
-                    </span>
+                    <span onClick={handleClear} style={{ cursor: "pointer", paddingLeft: 8 }} title="Clear selection">
+            <svg viewBox="0 0 24 24" fill="none" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+              <path
+                  d="M5.16565 10.1534C5.07629 8.99181 5.99473 8 7.15975 8H16.8402C18.0053 8 18.9237 8.9918 18.8344 10.1534L18.142 19.1534C18.0619 20.1954 17.193 21 16.1479 21H7.85206C6.80699 21 5.93811 20.1954 5.85795 19.1534L5.16565 10.1534Z"
+                  stroke="#000000"
+                  strokeWidth="2"
+              />
+              <path d="M19.5 5H4.5" stroke="#000000" strokeWidth="2" strokeLinecap="round" />
+              <path
+                  d="M10 3C10 2.44772 10.4477 2 11 2H13C13.5523 2 14 2.44772 14 3V5H10V3Z"
+                  stroke="#000000"
+                  strokeWidth="2"
+              />
+            </svg>
+          </span>
                 </div>
 
                 <input
@@ -185,13 +187,13 @@ const UploadStudent = () => {
                 <button
                     onClick={handleSubmit}
                     style={{
-                        marginTop: "10px",
+                        marginTop: 10,
                         padding: "10px 20px",
                         fontWeight: "bold",
                         backgroundColor: "#007bff",
                         color: "#fff",
                         border: "none",
-                        borderRadius: "8px",
+                        borderRadius: 8,
                         cursor: "pointer",
                     }}
                     disabled={loading || filesWithIndex.length === 0}
@@ -199,10 +201,8 @@ const UploadStudent = () => {
                     {loading ? "Submitting..." : "Submit"}
                 </button>
 
-                {error && <p style={{ color: "red", marginTop: "10px" }}>❌ {error}</p>}
+                {error && <p style={{ color: "red", marginTop: 10 }}>❌ {error}</p>}
             </div>
         </div>
     );
-};
-
-export default UploadStudent;
+}

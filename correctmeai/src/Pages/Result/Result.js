@@ -4,9 +4,9 @@ import { useParams, useSearchParams } from "react-router-dom";
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5005";
 
 export default function Result() {
-    const { submissionId } = useParams();                  // optional
+    const { submissionId } = useParams();           // optional
     const [searchParams] = useSearchParams();
-    const student = searchParams.get("student");           // optional
+    const student = searchParams.get("student");    // optional
 
     const [data, setData] = useState(null);
     const [exam, setExam] = useState(null);
@@ -15,15 +15,17 @@ export default function Result() {
 
     useEffect(() => {
         let alive = true;
+
         async function fetchData() {
             try {
                 setLoading(true);
                 setErr("");
 
                 let sub;
+
                 // Case 1: explicit id in the URL
-                if (submissionId) {
-                    const r = await fetch(`${API_BASE}/submissions/${submissionId}`);
+                if (submissionId && submissionId !== "undefined") {
+                    const r = await fetch(`${API_BASE}/api/submissions/${submissionId}`);
                     if (!r.ok) throw new Error(`Failed to fetch submission (${r.status})`);
                     sub = await r.json();
                 } else {
@@ -38,7 +40,7 @@ export default function Result() {
                 setData(sub);
 
                 if (sub?.exam_id) {
-                    const rex = await fetch(`${API_BASE}/exams/${sub.exam_id}`);
+                    const rex = await fetch(`${API_BASE}/api/exams/${sub.exam_id}`);
                     if (rex.ok) {
                         const ex = await rex.json();
                         if (alive) setExam(ex);
@@ -50,6 +52,7 @@ export default function Result() {
                 if (alive) setLoading(false);
             }
         }
+
         fetchData();
         return () => { alive = false; };
     }, [submissionId, student]);
@@ -57,7 +60,10 @@ export default function Result() {
     const total = data?.score ?? null;
     const feedback = data?.feedback || "";
     const details = Array.isArray(data?.grading_details) ? data.grading_details : [];
-    const percent = useMemo(() => total == null ? null : Math.round((total / 20) * 100), [total]);
+    const percent = useMemo(
+        () => (total == null ? null : Math.round((total / 20) * 100)),
+        [total]
+    );
 
     if (loading) return <div className="p-6 text-gray-500">Loading result…</div>;
     if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
@@ -132,8 +138,12 @@ export default function Result() {
                                 <tr key={idx} className="border-t">
                                     <td className="p-3 font-medium">{d.question_id || `#${d.index}`}</td>
                                     <td className="p-3 text-gray-600">{d.type}</td>
-                                    <td className="p-3"><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{fmt(d.expected)}</code></td>
-                                    <td className="p-3"><code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{fmt(d.student)}</code></td>
+                                    <td className="p-3">
+                                        <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{fmt(d.expected)}</code>
+                                    </td>
+                                    <td className="p-3">
+                                        <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{fmt(d.student)}</code>
+                                    </td>
                                     <td className="p-3 text-right">{round2(d.points)}</td>
                                     <td className="p-3 text-right">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${ok ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
@@ -158,11 +168,12 @@ export default function Result() {
                     <button
                         onClick={async () => {
                             try {
-                                // regrade by id (if we navigated with latest, use the fetched doc id)
-                                const id = data?._id || submissionId;
+                                const id = data?._id || (submissionId !== "undefined" ? submissionId : null);
                                 if (!id) return;
+                                // regrade (route is non-API in your Flask)
                                 await fetch(`${API_BASE}/submissions/${id}/regrade`);
-                                const res = await fetch(`${API_BASE}/submissions/${id}`);
+                                // refetch updated submission
+                                const res = await fetch(`${API_BASE}/api/submissions/${id}`);
                                 if (res.ok) setData(await res.json());
                             } catch {}
                         }}

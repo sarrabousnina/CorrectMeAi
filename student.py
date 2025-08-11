@@ -9,6 +9,8 @@ from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from mongo import exams_collection, submissions_collection
+from datetime import datetime
+
 
 app = Flask(__name__)
 CORS(app)
@@ -87,18 +89,25 @@ def extract_answers():
 
 @app.route("/api/submit-student", methods=["POST"])
 def submit_student():
-    data = request.json
+    data = request.json or {}
     if not data.get("student_id") or not data.get("exam_id") or not data.get("answers_structured"):
         return jsonify({"error": "Missing student_id, exam_id, or answers"}), 400
 
-    result = submissions_collection.insert_one({
-        "student_id": data["student_id"],
-        "exam_id": ObjectId(data["exam_id"]),
-        "answers_structured": data["answers_structured"],
-        "score": None
-    })
+    try:
+        exam_oid = ObjectId(data["exam_id"])
+    except InvalidId:
+        return jsonify({"error": "Invalid exam_id"}), 400
 
-    return jsonify({"message": "✅ Submission saved", "submission_id": str(result.inserted_id)})
+    doc = {
+        "student_id": data["student_id"],
+        "exam_id": exam_oid,
+        "answers_structured": data["answers_structured"],
+        "score": None,
+        "feedback": None,
+        "created_at": datetime.utcnow(),   # ✅ add this
+    }
+    ins = submissions_collection.insert_one(doc)
+    return jsonify({"message": "✅ Submission saved", "submission_id": str(ins.inserted_id)}), 201
 
 
 @app.route("/api/score-submission/<submission_id>", methods=["POST"])

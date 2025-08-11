@@ -29,7 +29,7 @@ const UploadStudent = () => {
         setLoading(true);
         setError("");
 
-        const item = filesWithIndex[0]; // just use the first file for now
+        const item = filesWithIndex[0]; // ✅ keep using only the first file
         const formData = new FormData();
         formData.append("files", item.file);
 
@@ -40,26 +40,27 @@ const UploadStudent = () => {
             });
 
             const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data?.error || "Failed to extract answers.");
+            }
 
-            if (response.ok && data.answers) {
-                // ✅ Navigate with structured answers + extracted name
-                navigate("/Correction", {
-                    state: {
-                        answers: data.answers,
-                        studentFile: item.file.name,
-                        studentName: data.student_name || "Unknown Student",
-                    },
-                });
+            // ✅ Go directly to Result
+            // Use submission_id if your backend returns it; otherwise fall back to latest by student
+            if (data.submission_id) {
+                navigate(`/result/${data.submission_id}`);
             } else {
-                alert("❌ Failed to extract answers. Please check the image.");
+                const student = data.student_id || data.student_name || "Unknown Student";
+                navigate(`/result?student=${encodeURIComponent(student)}`);
             }
         } catch (err) {
             console.error("❌ Server error:", err);
-            alert("❌ Server error while extracting answers.");
+            setError(err.message || "Upload failed.");
+            alert(`❌ ${err.message || "Upload failed."}`);
         } finally {
             setLoading(false);
         }
     };
+
 
 
 

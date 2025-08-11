@@ -154,6 +154,7 @@ const KeyPage = () => {
                     options: block.content.split("\n").slice(1), // optional: store options
                 });
             }
+            navigate("/student");
         });
 
         const examData = {

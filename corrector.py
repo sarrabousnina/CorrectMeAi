@@ -117,6 +117,15 @@ def score_submission(submission_id: str, allow_near=False):
     }})
     return {"score": total, "feedback": feedback, "details_count": len(details)}
 
+
+# helper: accept either a string ObjectId or a plain string
+def _as_oid_or_str(v):
+    try:
+        return ObjectId(v)
+    except Exception:
+        return v
+
+
 # ---------- Flask API ----------
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -133,6 +142,32 @@ def _to_json(doc):
     if "exam_id" in out and isinstance(out["exam_id"], ObjectId):
         out["exam_id"] = str(out["exam_id"])
     return out
+
+# --- submissions for a specific exam (includes exam title) ---
+@app.get("/api/exams/<eid>/submissions")
+def api_submissions_by_exam(eid):
+    oid = _as_oid_or_str(eid)
+    ex = exams.find_one({"_id": oid}, {"title": 1})
+    exam_obj = {"_id": str(oid), "title": ex.get("title") if ex else None}
+
+    cur = submissions.find({"exam_id": oid}).sort([("created_at", -1), ("_id", -1)])
+    items = [_to_json(d) for d in cur]
+    return jsonify({"exam": exam_obj, "items": items}), 200
+
+# --- submissions for the *latest* exam ---
+@app.get("/api/exams/latest/submissions")
+def api_latest_exam_submissions():
+    ex_cur = exams.find().sort([("created_at", -1), ("_id", -1)]).limit(1)
+    latest = next(ex_cur, None)
+    if not latest:
+        return jsonify({"error": "No exams found"}), 404
+
+    exam_obj = {"_id": str(latest["_id"]), "title": latest.get("title", "Untitled Exam")}
+    cur = submissions.find({"exam_id": latest["_id"]}).sort([("created_at", -1), ("_id", -1)])
+    items = [_to_json(d) for d in cur]
+    return jsonify({"exam": exam_obj, "items": items}), 200
+
+
 
 @app.get("/health")
 def health():

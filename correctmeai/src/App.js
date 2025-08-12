@@ -5,6 +5,9 @@ import KeyPage from "./Pages/KeyPage/KeyPage";
 import UploadStudent from "./Pages/UploadStudent/UploadStudent";
 import Correction from "./Pages/Correction/Correction";
 import Result from "./Pages/Result/Result";
+import Grades from "./Pages/Grades/Grades";
+
+
 
 function App() {
     return (
@@ -16,6 +19,7 @@ function App() {
                 <Route path="/Correction" element={<Correction />} />
                 <Route path="/result" element={<Result />} />              {/* supports ?student=... */}
                 <Route path="/result/:submissionId" element={<Result />} />
+                <Route path="/exam/:examId/grades" element={<Grades />} />
             </Routes>
         </Router>
     );

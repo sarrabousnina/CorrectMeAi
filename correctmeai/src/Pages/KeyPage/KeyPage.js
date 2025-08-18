@@ -6,6 +6,11 @@ const KeyPage = () => {
     const navigate = useNavigate();
     const extractedText = location.state?.extractedText || "";
 
+    // UI state
+    const [saving, setSaving] = useState(false);
+    const [successMsg, setSuccessMsg] = useState("");
+    const [errorMsg, setErrorMsg] = useState("");
+
     const blankRegex = /(\.{3,}|_{3,})/;
     const excludedLabels = ["name", "class", "number", "notes"];
 
@@ -20,15 +25,10 @@ const KeyPage = () => {
         if (/tick|circle/i.test(line)) {
             let mcqLines = [line];
             i++;
-
-            while (
-                i < lines.length &&
-                /^\s*-?\s*[a-dA-D][\s☐\[\.\)\-]/.test(lines[i])
-                ) {
+            while (i < lines.length && /^\s*-?\s*[a-dA-D][\s☐\[\.\)\-]/.test(lines[i])) {
                 mcqLines.push(lines[i]);
                 i++;
             }
-
             blocks.push({ type: "mcq", content: mcqLines.join("\n") });
         } else {
             let textLines = [line];
@@ -41,7 +41,6 @@ const KeyPage = () => {
                 textLines.push(lines[i]);
                 i++;
             }
-
             blocks.push({ type: "text", content: textLines.join("\n") });
         }
     }
@@ -72,10 +71,7 @@ const KeyPage = () => {
             if (isBlank) {
                 const before = parts[i - 1]?.toLowerCase() || "";
                 const exclude = excludedLabels.some((label) => before.includes(label));
-
-                if (exclude) {
-                    return <span key={`skip-${i}`}>__________</span>;
-                }
+                if (exclude) return <span key={`skip-${i}`}>__________</span>;
 
                 const currentIndex = inputCounter++;
                 return (
@@ -94,9 +90,8 @@ const KeyPage = () => {
                         placeholder={`Answer ${currentIndex + 1}`}
                     />
                 );
-            } else {
-                return <span key={`text-${i}`}>{part}</span>;
             }
+            return <span key={`text-${i}`}>{part}</span>;
         });
     };
 
@@ -131,13 +126,17 @@ const KeyPage = () => {
     };
 
     const handleSubmitKey = async () => {
+        setSaving(true);
+        setSuccessMsg("");
+        setErrorMsg("");
+
         const answerKey = [];
         let textAnswerIndex = 0;
 
         blocks.forEach((block, index) => {
             if (block.type === "text") {
                 const matches = block.content.match(blankRegex) || [];
-                matches.forEach((_, i) => {
+                matches.forEach(() => {
                     answerKey.push({
                         question_id: `t${textAnswerIndex}`,
                         type: "text",
@@ -150,44 +149,85 @@ const KeyPage = () => {
                     question_id: `q${index}`,
                     type: "mcq",
                     expected_answer: selectedChoices[`q${index}`] || "",
-                    question: block.content.split("\n")[0], // optional: store MCQ question
-                    options: block.content.split("\n").slice(1), // optional: store options
+                    question: block.content.split("\n")[0],
+                    options: block.content.split("\n").slice(1),
                 });
             }
-            navigate("/student");
         });
 
         const examData = {
-            title: "Math Midterm 2025", // you can replace this with dynamic value later
-            created_by: "prof123",      // same for this
+            title: "Math Midterm 2025",
+            created_by: "prof123",
             answer_key: answerKey,
         };
 
         try {
+            // NOTE: update the port/path to your real backend if needed
             const res = await fetch("http://localhost:5000/api/submit-answer-key", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(examData),
             });
 
-            const data = await res.json();
-            console.log("✅ Exam saved:", data);
-            alert("✅ Correction key saved!");
-            navigate("/");
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(errText || `HTTP ${res.status}`);
+            }
+
+            // Success UI (no alert)
+            setSuccessMsg("Correction uploaded successfully ✅ Redirecting…");
+            setSaving(false);
+
+            // Navigate to /Student after a short delay
+            setTimeout(() => {
+                navigate("/Student");
+            }, 1200);
         } catch (err) {
             console.error("❌ Error saving exam:", err);
-            alert("❌ Failed to save the correction key.");
+            setErrorMsg("Failed to save the correction key.");
+            setSaving(false);
         }
     };
 
-
     return (
-        <div style={{padding: "20px", maxWidth: "900px", margin: "0 auto"}}>
+        <div style={{ padding: "20px", maxWidth: "900px", margin: "0 auto" }}>
             <h2>🧠 Correction Key Entry</h2>
 
-            <section style={{marginBottom: "20px"}}>
+            {/* Inline banners */}
+            {successMsg && (
+                <div
+                    style={{
+                        marginTop: 12,
+                        marginBottom: 12,
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        background: "#e8f7ee",
+                        color: "#1c6b3a",
+                        border: "1px solid #bfe8cf",
+                        fontWeight: 600,
+                    }}
+                >
+                    {successMsg}
+                </div>
+            )}
+            {errorMsg && (
+                <div
+                    style={{
+                        marginTop: 12,
+                        marginBottom: 12,
+                        padding: "10px 14px",
+                        borderRadius: 8,
+                        background: "#fdeaea",
+                        color: "#a52828",
+                        border: "1px solid #f3c2c2",
+                        fontWeight: 600,
+                    }}
+                >
+                    {errorMsg}
+                </div>
+            )}
+
+            <section style={{ marginBottom: "20px" }}>
                 <h4>📄 Detected Exam Text</h4>
                 <div
                     style={{
@@ -206,37 +246,41 @@ const KeyPage = () => {
                 </div>
             </section>
 
-            <button
-                onClick={() => navigate("/")}
-                style={{
-                    marginTop: "20px",
-                    padding: "10px 20px",
-                    fontWeight: "bold",
-                    backgroundColor: "#007bff",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                }}
-            >
-                ⬅ Back to Upload
-            </button>
+            <div style={{ display: "flex", gap: 12 }}>
+                <button
+                    onClick={() => navigate("/")}
+                    disabled={saving}
+                    style={{
+                        padding: "10px 20px",
+                        fontWeight: "bold",
+                        backgroundColor: "#007bff",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        opacity: saving ? 0.7 : 1,
+                    }}
+                >
+                    ⬅ Back to Upload
+                </button>
 
-            <button
-                onClick={handleSubmitKey}
-                style={{
-                    padding: "10px 20px",
-                    fontWeight: "bold",
-                    backgroundColor: "#28a745",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                }}
-            >
-                ✅ Save Answer Key
-            </button>
-
+                <button
+                    onClick={handleSubmitKey}
+                    disabled={saving}
+                    style={{
+                        padding: "10px 20px",
+                        fontWeight: "bold",
+                        backgroundColor: "#28a745",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        opacity: saving ? 0.7 : 1,
+                    }}
+                >
+                    {saving ? "Saving…" : "✅ Save Answer Key"}
+                </button>
+            </div>
         </div>
     );
 };

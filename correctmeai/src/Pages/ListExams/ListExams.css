@@ -1,0 +1,152 @@
+.list-exams-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+.list-exams-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.list-exams-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #222;
+}
+
+.list-exams-header p {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.list-exams-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.list-exams-filters input,
+.list-exams-filters select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.exams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.exam-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.exam-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.exam-thumbnail {
+    background: #f9f9f9;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 0.9rem;
+}
+
+.exam-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.exam-content {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.exam-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #222;
+    text-decoration: none;
+}
+
+.exam-title:hover {
+    text-decoration: underline;
+}
+
+.exam-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    text-transform: capitalize;
+}
+
+.exam-status.published {
+    background: #e6f7e6;
+    color: #2d7a2d;
+}
+
+.exam-status.draft {
+    background: #fff8e6;
+    color: #a87c00;
+}
+
+.exam-status.archived {
+    background: #fdeaea;
+    color: #a52828;
+}
+
+.exam-meta {
+    font-size: 0.8rem;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+}
+
+.exam-footer {
+    border-top: 1px solid #eee;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.exam-footer a {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #0066cc;
+    text-decoration: none;
+}
+
+.exam-footer a:hover {
+    text-decoration: underline;
+}
+
+.exam-id {
+    font-size: 0.75rem;
+    color: #aaa;
+    font-family: monospace;
+}

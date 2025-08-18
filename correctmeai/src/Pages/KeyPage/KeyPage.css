@@ -1,0 +1,99 @@
+/* ===== Modal Overlay ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+/* ===== Modal Container ===== */
+.modal-container {
+    width: min(520px, 94vw);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    animation: modal-pop 0.25s ease-out;
+}
+
+/* ===== Modal Header ===== */
+.modal-container h3 {
+    margin-bottom: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #333;
+}
+
+/* ===== Input Styling ===== */
+.modal-container input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+
+.modal-container input[type="text"]:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+}
+
+/* ===== Buttons ===== */
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.modal-btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.modal-btn.cancel {
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #333;
+}
+
+.modal-btn.cancel:hover:not(:disabled) {
+    background: #f5f5f5;
+}
+
+.modal-btn.save {
+    border: none;
+    background: #28a745;
+    color: #fff;
+}
+
+.modal-btn.save:hover:not(:disabled) {
+    background: #218838;
+    transform: translateY(-1px);
+}
+
+/* ===== Animation ===== */
+@keyframes modal-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

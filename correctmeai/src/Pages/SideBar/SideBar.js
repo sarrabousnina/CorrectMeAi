@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import "./SideBar.css";
 
@@ -8,6 +8,26 @@ export default function Sidebar({
                                     onToggleCollapse = () => {},
                                     onCloseMobile = () => {},
                                 }) {
+    // ---- THEME: read, initialize, and persist
+    const getInitialTheme = () => {
+        const saved = localStorage.getItem("theme");
+        if (saved === "dark" || saved === "light") return saved;
+        // fallback to system
+        return window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+    };
+
+    const [theme, setTheme] = useState(getInitialTheme);
+
+    useEffect(() => {
+        const body = document.body;
+        body.classList.remove("theme-dark", "theme-light");
+        body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
+        localStorage.setItem("theme", theme);
+    }, [theme]);
+
     // Keep page content shifted with the sidebar (desktop & mobile)
     useEffect(() => {
         const body = document.body;
@@ -49,10 +69,24 @@ export default function Sidebar({
                         window.innerWidth < 900 ? onCloseMobile() : onToggleCollapse()
                     }
                     aria-label="Toggle menu"
+                    title={window.innerWidth < 900 ? "Close menu" : "Collapse/expand"}
                 >
                     {window.innerWidth < 900 ? "✕" : "☰"}
                 </button>
+
                 <div className="sb__brand">CorrectMe</div>
+
+                {/* DARK MODE TOGGLE */}
+                <button
+                    className="sb__theme"
+                    onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+                    aria-label="Toggle dark mode"
+                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+          <span className="sb__themeIcon" aria-hidden="true">
+            {theme === "dark" ? "☀️" : "🌙"}
+          </span>
+                </button>
             </div>
 
             <nav className="sb__nav">

@@ -1,5 +1,6 @@
-/* index.css — hyper-fast, interactive, pulsing multi-color blobs
-   + stacking fixes so UI is always above the background */
+/* index.css — interactive, pulsing multi‑color blobs
+   Light + Dark palettes (real color swap, not only brightness)
+   UI always above the background */
 
 /* Reset */
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,36 +14,76 @@ html, body, #root { height: 100%; width: 100%; }
     --dy: 0;    /* -1..1 */
 }
 
-/* Base static background (multiple blobs visible) */
+/* --------- COLOR PALETTES --------- */
+/* Light palette (pastel) */
+:root {
+    /* rgb triplets (no alpha) */
+    --c1: 230 120 140;  /* rose   */
+    --c2: 120 160 255;  /* blue   */
+    --c3: 255 210 100;  /* amber  */
+    --c4: 160 120 255;  /* violet */
+    --c5: 120 220 190;  /* mint   */
+    --c6: 255 170 140;  /* peach  */
+
+    /* base page color */
+    --page-bg: #f1eff7;
+
+    /* intensity multipliers (alphas) */
+    --a-main: 0.90;
+    --a-before: 0.50;
+    --a-after: 0.38;   /* supporting blobs in ::after */
+    --a-spot: 0.28;    /* mouse spotlight */
+}
+
+/* Dark palette (deeper tones) */
+body.theme-dark {
+    /* deeper hues */
+    --c1: 188  52  82;   /* deep rose */
+    --c2:  68 100 220;   /* indigo/blue */
+    --c3: 230 170  60;   /* warm amber */
+    --c4: 118  86 210;   /* royal violet */
+    --c5:  60 170 150;   /* dark teal */
+    --c6: 220 120  80;   /* burnt orange */
+
+    --page-bg: #0b1020;
+
+    /* slightly lower alphas so the page feels darker */
+    --a-main:   0.70;
+    --a-before: 0.42;
+    --a-after:  0.28;
+    --a-spot:   0.22;
+}
+
+/* --------- BASE STATIC BACKGROUND (multiple blobs visible) --------- */
 body{
     position: relative;                /* establishes stacking context */
-   /* overflow: hidden;*/
     background:
-            radial-gradient(42rem 42rem at 18% 28%, rgba(230,120,140,0.90) 0%, transparent 60%),
-            radial-gradient(46rem 46rem at 82% 22%, rgba(120,160,255,0.88) 0%, transparent 60%),
-            radial-gradient(40rem 40rem at 72% 80%, rgba(255,210,100,0.88) 0%, transparent 60%),
-            radial-gradient(44rem 44rem at 28% 72%, rgba(160,120,255,0.88) 0%, transparent 60%),
-            radial-gradient(36rem 36rem at 50% 50%, rgba(120,220,190,0.80) 0%, transparent 60%),
-            radial-gradient(38rem 38rem at 10% 80%, rgba(255,170,140,0.85) 0%, transparent 60%),
-            #f1eff7;
+            radial-gradient(42rem 42rem at 18% 28%, rgb(var(--c1) / var(--a-main)) 0%, transparent 60%),
+            radial-gradient(46rem 46rem at 82% 22%, rgb(var(--c2) / var(--a-main)) 0%, transparent 60%),
+            radial-gradient(40rem 40rem at 72% 80%, rgb(var(--c3) / var(--a-main)) 0%, transparent 60%),
+            radial-gradient(44rem 44rem at 28% 72%, rgb(var(--c4) / var(--a-main)) 0%, transparent 60%),
+            radial-gradient(36rem 36rem at 50% 50%, rgb(var(--c5) / calc(var(--a-main) - 0.10)) 0%, transparent 60%),
+            radial-gradient(38rem 38rem at 10% 80%, rgb(var(--c6) / calc(var(--a-main) - 0.05)) 0%, transparent 60%),
+            var(--page-bg);
     background-attachment: fixed;
 }
 
-/* Layer 1: FAST auto-drift + pulse */
+/* --------- ANIMATIONS --------- */
+/* Layer 1: auto‑drift + pulse (blurry color wash behind) */
 body::before{
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: -9999;                    /* ⬅️ keep FAR behind all UI */
+    z-index: -9999;                    /* far behind UI */
     filter: blur(65px) saturate(1.15);
     background:
-            radial-gradient(36rem 36rem at 20% 25%, rgba(230,120,140,0.55), transparent 60%),
-            radial-gradient(40rem 40rem at 85% 30%, rgba(120,160,255,0.52), transparent 60%),
-            radial-gradient(32rem 32rem at 75% 82%, rgba(255,210,100,0.50), transparent 60%),
-            radial-gradient(34rem 34rem at 25% 78%, rgba(160,120,255,0.50), transparent 60%),
-            radial-gradient(30rem 30rem at 55% 55%, rgba(120,220,190,0.45), transparent 60%),
-            radial-gradient(32rem 32rem at 12% 85%, rgba(255,170,140,0.50), transparent 60%);
+            radial-gradient(36rem 36rem at 20% 25%, rgb(var(--c1) / var(--a-before)), transparent 60%),
+            radial-gradient(40rem 40rem at 85% 30%, rgb(var(--c2) / var(--a-before)), transparent 60%),
+            radial-gradient(32rem 32rem at 75% 82%, rgb(var(--c3) / var(--a-before)), transparent 60%),
+            radial-gradient(34rem 34rem at 25% 78%, rgb(var(--c4) / var(--a-before)), transparent 60%),
+            radial-gradient(30rem 30rem at 55% 55%, rgb(var(--c5) / calc(var(--a-before) - 0.10)), transparent 60%),
+            radial-gradient(32rem 32rem at 12% 85%, rgb(var(--c6) / var(--a-before)), transparent 60%);
     mix-blend-mode: screen;
 
     animation:
@@ -56,28 +97,28 @@ body::before{
     100% { transform: translate3d(-12vw, -8vh, 0)  scale(1.05); }
 }
 
-/* Pulse effect: brightness + saturation oscillation */
+/* brightness + saturation oscillation */
 @keyframes pulse{
     0%,100% { filter: blur(65px) saturate(1.00) brightness(1.00); }
-    50%     { filter: blur(65px) saturate(1.25) brightness(1.15); }
+    50%     { filter: blur(65px) saturate(1.20) brightness(1.12); }
 }
 
-/* Layer 2: Mouse spotlight + parallax + pulse */
+/* Layer 2: Mouse spotlight + parallax + pulse (sits above ::before) */
 body::after{
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: -9998;                    /* ⬅️ also behind UI (above ::before) */
+    z-index: -9998;
     filter: blur(55px) saturate(1.18);
     background:
-            radial-gradient(26rem 26rem at 18% 28%, rgba(230,120,140,0.40), transparent 60%),
-            radial-gradient(28rem 28rem at 82% 22%, rgba(120,160,255,0.38), transparent 60%),
-            radial-gradient(24rem 24rem at 72% 80%, rgba(255,210,100,0.35), transparent 60%),
-            radial-gradient(26rem 26rem at 28% 72%, rgba(160,120,255,0.35), transparent 60%),
-            radial-gradient(22rem 22rem at 50% 50%, rgba(120,220,190,0.32), transparent 60%),
-            radial-gradient(24rem 24rem at 10% 80%, rgba(255,170,140,0.36), transparent 60%),
-            radial-gradient(18rem 18rem at calc(var(--mx) * 1%) calc(var(--my) * 1%), rgba(255,255,255,0.28), transparent 65%);
+            radial-gradient(26rem 26rem at 18% 28%, rgb(var(--c1) / var(--a-after)), transparent 60%),
+            radial-gradient(28rem 28rem at 82% 22%, rgb(var(--c2) / var(--a-after)), transparent 60%),
+            radial-gradient(24rem 24rem at 72% 80%, rgb(var(--c3) / var(--a-after)), transparent 60%),
+            radial-gradient(26rem 26rem at 28% 72%, rgb(var(--c4) / var(--a-after)), transparent 60%),
+            radial-gradient(22rem 22rem at 50% 50%, rgb(var(--c5) / calc(var(--a-after) - 0.06)), transparent 60%),
+            radial-gradient(24rem 24rem at 10% 80%, rgb(var(--c6) / var(--a-after)), transparent 60%),
+            radial-gradient(18rem 18rem at calc(var(--mx) * 1%) calc(var(--my) * 1%), rgb(255 255 255 / var(--a-spot)), transparent 65%);
     mix-blend-mode: screen;
 
     transform: translate3d(
@@ -89,14 +130,20 @@ body::after{
     animation: pulse 5s ease-in-out infinite;
 }
 
-/* ⬆ Ensure app content renders above the background layers */
+/* Ensure app content renders above background layers */
 #root, .layout, .layout__main, .page-wrapper, .upload-card {
     position: relative;
     z-index: 1;
 }
 
-/* Optional: respect reduced motion (keep subtle pulse only) */
+/* Reduced motion: keep subtle pulse only */
 @media (prefers-reduced-motion: reduce){
     body::before{ animation: pulse 6s ease-in-out infinite; }
     body::after { transition: none; animation: pulse 6s ease-in-out infinite; }
 }
+
+/* ------ Optional extra tone for dark mode (keeps your request intact) ------ */
+body.theme-dark { background-color: var(--page-bg); }
+body.theme-dark::before { filter: blur(65px) saturate(1.05) brightness(0.88); }
+body.theme-dark::after  { filter: blur(55px) saturate(1.05) brightness(0.88); }
+

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import "./SideBar.css";
 
@@ -8,6 +8,32 @@ export default function Sidebar({
                                     onToggleCollapse = () => {},
                                     onCloseMobile = () => {},
                                 }) {
+    // Keep page content shifted with the sidebar (desktop & mobile)
+    useEffect(() => {
+        const body = document.body;
+
+        const apply = () => {
+            const isMobile = window.innerWidth < 900;
+
+            body.classList.remove(
+                "sb-expanded",
+                "sb-collapsed",
+                "sb-mobile-open",
+                "sb-mobile-closed"
+            );
+
+            if (isMobile) {
+                body.classList.add(mobileOpen ? "sb-mobile-open" : "sb-mobile-closed");
+            } else {
+                body.classList.add(collapsed ? "sb-collapsed" : "sb-expanded");
+            }
+        };
+
+        apply();
+        window.addEventListener("resize", apply);
+        return () => window.removeEventListener("resize", apply);
+    }, [collapsed, mobileOpen]);
+
     return (
         <aside
             className={[
@@ -40,7 +66,6 @@ export default function Sidebar({
                     <span className="sb__label">List Exams</span>
                 </NavLink>
 
-                {/* REPLACE examId with a real one or navigate from exam cards */}
                 <NavLink to="/grades" className="sb__link">
                     <span className="sb__icon">🎓</span>
                     <span className="sb__label">Grades</span>

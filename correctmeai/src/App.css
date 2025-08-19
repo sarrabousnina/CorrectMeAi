@@ -36,3 +36,12 @@
     transform: rotate(360deg);
   }
 }
+.main-content {
+  margin-left: var(--sb-w); /* make space for the sidebar */
+  padding: 20px;
+  transition: margin-left .28s cubic-bezier(.22,.61,.36,1);
+}
+
+.sb.sb--collapsed ~ .main-content {
+  margin-left: var(--sb-mini); /* when collapsed */
+}

@@ -38,7 +38,7 @@ export default function MainLayout() {
             />
 
             {/* launcher button (mobile & mini modes) */}
-            {!mobileOpen && (
+{/*            {!mobileOpen && (
                 <button
                     className="sb__launcher"
                     aria-label="Open menu"
@@ -48,7 +48,7 @@ export default function MainLayout() {
                 >
                     ☰
                 </button>
-            )}
+            )}*/}
 
             {/* dark backdrop when the sidebar is open on mobile */}
             {mobileOpen && <div className="sb__backdrop" onClick={() => setMobileOpen(false)} />}

@@ -1,0 +1,102 @@
+/* index.css — hyper-fast, interactive, pulsing multi-color blobs
+   + stacking fixes so UI is always above the background */
+
+/* Reset */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #root { height: 100%; width: 100%; }
+
+/* Cursor-driven vars (set by JS) */
+:root{
+    --mx: 50;   /* 0–100 */
+    --my: 50;   /* 0–100 */
+    --dx: 0;    /* -1..1 */
+    --dy: 0;    /* -1..1 */
+}
+
+/* Base static background (multiple blobs visible) */
+body{
+    position: relative;                /* establishes stacking context */
+   /* overflow: hidden;*/
+    background:
+            radial-gradient(42rem 42rem at 18% 28%, rgba(230,120,140,0.90) 0%, transparent 60%),
+            radial-gradient(46rem 46rem at 82% 22%, rgba(120,160,255,0.88) 0%, transparent 60%),
+            radial-gradient(40rem 40rem at 72% 80%, rgba(255,210,100,0.88) 0%, transparent 60%),
+            radial-gradient(44rem 44rem at 28% 72%, rgba(160,120,255,0.88) 0%, transparent 60%),
+            radial-gradient(36rem 36rem at 50% 50%, rgba(120,220,190,0.80) 0%, transparent 60%),
+            radial-gradient(38rem 38rem at 10% 80%, rgba(255,170,140,0.85) 0%, transparent 60%),
+            #f1eff7;
+    background-attachment: fixed;
+}
+
+/* Layer 1: FAST auto-drift + pulse */
+body::before{
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -9999;                    /* ⬅️ keep FAR behind all UI */
+    filter: blur(65px) saturate(1.15);
+    background:
+            radial-gradient(36rem 36rem at 20% 25%, rgba(230,120,140,0.55), transparent 60%),
+            radial-gradient(40rem 40rem at 85% 30%, rgba(120,160,255,0.52), transparent 60%),
+            radial-gradient(32rem 32rem at 75% 82%, rgba(255,210,100,0.50), transparent 60%),
+            radial-gradient(34rem 34rem at 25% 78%, rgba(160,120,255,0.50), transparent 60%),
+            radial-gradient(30rem 30rem at 55% 55%, rgba(120,220,190,0.45), transparent 60%),
+            radial-gradient(32rem 32rem at 12% 85%, rgba(255,170,140,0.50), transparent 60%);
+    mix-blend-mode: screen;
+
+    animation:
+            drift 3s ease-in-out infinite alternate,
+            pulse 5s ease-in-out infinite;
+}
+
+@keyframes drift{
+    0%   { transform: translate3d(-15vw, -10vh, 0) scale(1.05); }
+    50%  { transform: translate3d( 15vw,  10vh, 0) scale(1.08); }
+    100% { transform: translate3d(-12vw, -8vh, 0)  scale(1.05); }
+}
+
+/* Pulse effect: brightness + saturation oscillation */
+@keyframes pulse{
+    0%,100% { filter: blur(65px) saturate(1.00) brightness(1.00); }
+    50%     { filter: blur(65px) saturate(1.25) brightness(1.15); }
+}
+
+/* Layer 2: Mouse spotlight + parallax + pulse */
+body::after{
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -9998;                    /* ⬅️ also behind UI (above ::before) */
+    filter: blur(55px) saturate(1.18);
+    background:
+            radial-gradient(26rem 26rem at 18% 28%, rgba(230,120,140,0.40), transparent 60%),
+            radial-gradient(28rem 28rem at 82% 22%, rgba(120,160,255,0.38), transparent 60%),
+            radial-gradient(24rem 24rem at 72% 80%, rgba(255,210,100,0.35), transparent 60%),
+            radial-gradient(26rem 26rem at 28% 72%, rgba(160,120,255,0.35), transparent 60%),
+            radial-gradient(22rem 22rem at 50% 50%, rgba(120,220,190,0.32), transparent 60%),
+            radial-gradient(24rem 24rem at 10% 80%, rgba(255,170,140,0.36), transparent 60%),
+            radial-gradient(18rem 18rem at calc(var(--mx) * 1%) calc(var(--my) * 1%), rgba(255,255,255,0.28), transparent 65%);
+    mix-blend-mode: screen;
+
+    transform: translate3d(
+            calc(var(--dx) * 7vw),
+            calc(var(--dy) * 6vh),
+            0
+    );
+    transition: transform 0.025s linear;
+    animation: pulse 5s ease-in-out infinite;
+}
+
+/* ⬆ Ensure app content renders above the background layers */
+#root, .layout, .layout__main, .page-wrapper, .upload-card {
+    position: relative;
+    z-index: 1;
+}
+
+/* Optional: respect reduced motion (keep subtle pulse only) */
+@media (prefers-reduced-motion: reduce){
+    body::before{ animation: pulse 6s ease-in-out infinite; }
+    body::after { transition: none; animation: pulse 6s ease-in-out infinite; }
+}

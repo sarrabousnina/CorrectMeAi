@@ -1,17 +1,52 @@
-import React, { useState, useRef } from "react";
+// src/Pages/UploadStudent/UploadStudent.jsx
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ReactSortable } from "react-sortablejs";
+import { authedFetch, GRADER_BASE } from "../../JWT/api";
 import "./UploadStudent.css";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5001";
+/** Services
+ *  - Main backend (auth + exams): GRADER_BASE (e.g., http://localhost:5006)
+ *  - Student/OCR service: OCR_BASE (e.g., http://localhost:5001)
+ */
+const OCR_BASE = process.env.REACT_APP_OCR_BASE || "http://localhost:5001";
 
 export default function UploadStudent() {
+    const navigate = useNavigate();
+    const fileInputRef = useRef(null);
+
+    // Files
     const [filesWithIndex, setFilesWithIndex] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const fileInputRef = useRef(null);
-    const navigate = useNavigate();
 
+    // Exams
+    const [exams, setExams] = useState([]);
+    const [selectedExamId, setSelectedExamId] = useState("");
+
+    // ---------- Load current user's exams ----------
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                setError("");
+                const r = await authedFetch(`${GRADER_BASE}/api/exams`);
+                const j = await r.json();
+                if (!r.ok) throw new Error(j?.error || `Failed to load exams (${r.status})`);
+                if (!alive) return;
+                setExams(Array.isArray(j) ? j : []);
+                if (Array.isArray(j) && j.length && !selectedExamId) {
+                    setSelectedExamId(j[0]._id);
+                }
+            } catch (e) {
+                if (alive) setError(e.message || "Failed to load exams.");
+            }
+        })();
+        return () => { alive = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ---------- File handlers ----------
     const handleFileChange = (event) => {
         const selectedFiles = Array.from(event.target.files || []);
         const newFiles = selectedFiles.map((file, idx) => ({
@@ -38,49 +73,52 @@ export default function UploadStudent() {
         setError("");
     };
 
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
     const handleClear = () => {
         filesWithIndex.forEach((f) => URL.revokeObjectURL(f.preview));
         setFilesWithIndex([]);
         setError("");
     };
 
+
+    // ---------- Submit flow ----------
     const handleSubmit = async () => {
+        if (!selectedExamId) {
+            setError("Please choose an exam to attach this submission to.");
+            return;
+        }
         if (filesWithIndex.length === 0) return;
+
         setLoading(true);
         setError("");
 
         try {
-            // 1) OCR the first page (backend /extract-answers currently accepts ONE file)
+            // 1) OCR first page (your OCR endpoint accepts one file)
             const first = filesWithIndex[0];
             const fd = new FormData();
             fd.append("files", first.file);
 
-            const ocrRes = await fetch(`${API_BASE}/extract-answers`, {
+            const ocrRes = await fetch(`${OCR_BASE}/extract-answers`, {
                 method: "POST",
                 body: fd,
             });
             const ocr = await ocrRes.json();
             if (!ocrRes.ok) throw new Error(ocr?.error || "Failed to extract answers.");
 
-            const student =
-                ocr.student_name || ocr.student_id || "Unknown Student";
-            const answers =
-                ocr.answers || ocr.answers_structured || {};
+            const student = ocr.student_name || ocr.student_id || "Unknown Student";
+            const answers = ocr.answers || ocr.answers_structured || {};
 
-            // 2) Get latest exam
-            const exRes = await fetch(`${API_BASE}/api/exams/latest`);
-            const latest = await exRes.json();
-            if (!exRes.ok || !latest?.id) {
-                throw new Error(latest?.error || "No latest exam found.");
-            }
-
-            // 3) Save submission to Mongo
-            const saveRes = await fetch(`${API_BASE}/api/submit-student`, {
+            // 2) Save submission to student service
+            const saveRes = await fetch(`${OCR_BASE}/api/submit-student`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     student_id: student,
-                    exam_id: latest.id,                 // string ObjectId -> server casts to ObjectId
+                    exam_id: selectedExamId, // string → server casts to ObjectId
                     answers_structured: answers,
                 }),
             });
@@ -89,7 +127,7 @@ export default function UploadStudent() {
                 throw new Error(saved?.error || "Failed to save submission.");
             }
 
-            // 4) Navigate to result by id (reliable)
+            // 3) Go to Result page
             navigate(`/result/${saved.submission_id}`);
         } catch (e) {
             console.error(e);
@@ -100,14 +138,31 @@ export default function UploadStudent() {
         }
     };
 
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
     return (
         <div className="page-wrapper">
             <div className="container" onDragOver={handleDragOver} onDrop={handleDrop}>
+                {/* Exam picker row */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, width: 120, textAlign: "right" }}>Attach to exam:</div>
+
+                    <select
+                        value={selectedExamId || ""}
+                        onChange={(e) => setSelectedExamId(e.target.value)}
+                        className="input"
+                        style={{ minWidth: 260 }}
+                    >
+                        {!exams.length && <option value="">— no exams yet —</option>}
+                        {exams.map((ex) => (
+                            <option key={ex._id} value={ex._id}>
+                                {/* ✅ NO "(key ready)" suffix here — only title */}
+                                {ex.title}
+                            </option>
+                        ))}
+                    </select>
+
+                </div>
+
+                {/* Drop zone / gallery */}
                 <div
                     className="header full-gallery"
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
@@ -130,7 +185,6 @@ export default function UploadStudent() {
                             <p style={{ textAlign: "center", fontSize: 14, marginBottom: 8, color: "#333" }}>
                                 🟰 Drag the images to reorder them before submitting
                             </p>
-
                             <ReactSortable list={filesWithIndex} setList={setFilesWithIndex} className="header-gallery">
                                 {filesWithIndex.map((item, index) => (
                                     <div
@@ -147,6 +201,7 @@ export default function UploadStudent() {
                     )}
                 </div>
 
+                {/* Footer row (filename + clear) */}
                 <div className="footer">
                     <svg fill="#000000" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style={{ width: 24, height: 24 }}>
                         <path d="M15.331 6H8.5v20h15V14.154h-8.169z" />
@@ -174,6 +229,7 @@ export default function UploadStudent() {
           </span>
                 </div>
 
+                {/* Hidden file input */}
                 <input
                     id="file"
                     type="file"
@@ -184,6 +240,7 @@ export default function UploadStudent() {
                     style={{ display: "none" }}
                 />
 
+                {/* Submit */}
                 <button
                     onClick={handleSubmit}
                     style={{

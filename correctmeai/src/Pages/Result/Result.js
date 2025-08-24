@@ -1,12 +1,13 @@
 // src/Pages/Result/Result.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom"; // ⬅ add useNavigate
 import "./Result.css";
 import { GRADER_BASE, SUB_API, authedFetch } from "../../JWT/api";
 
 export default function Result() {
     const { submissionId } = useParams();
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate(); // ⬅ add
     const student = searchParams.get("student");
 
     const [data, setData] = useState(null);
@@ -24,7 +25,7 @@ export default function Result() {
                 let sub;
 
                 if (submissionId && submissionId !== "undefined") {
-                    // fetch submission from the corrector server (:5005)
+                    // fetch submission from the corrector server (:5005 / SUB_API)
                     const r = await authedFetch(
                         `${SUB_API}/submissions/${encodeURIComponent(submissionId)}`
                     );
@@ -88,7 +89,7 @@ export default function Result() {
 
     const barClass = percent >= 50 ? "bar--ok" : "bar--bad";
 
-    // exam id for the Grades page
+    // exam id for the Grades page & for new submissions
     const examId = data?.exam_id || exam?._id;
 
     return (
@@ -122,10 +123,7 @@ export default function Result() {
                                 </div>
 
                                 <div className="progress">
-                                    <div
-                                        className={`bar ${barClass}`}
-                                        style={{ width: `${percent}%` }}
-                                    />
+                                    <div className={`bar ${barClass}`} style={{ width: `${percent}%` }} />
                                 </div>
                                 <div className="progress__caption">Progress</div>
                             </div>
@@ -199,6 +197,20 @@ export default function Result() {
                                     View all grades
                                 </Link>
                             )}
+
+                            {/* NEW: Add submission button */}
+                            <button
+                                className="btn btn--ghost"
+                                onClick={() =>
+                                    navigate("/student", {
+                                        state: { examId, examTitle: exam?.title || undefined },
+                                    })
+                                }
+                                disabled={!examId}
+                                title={examId ? "Add a new submission to this exam" : "Exam id unknown"}
+                            >
+                                + New submission
+                            </button>
 
                             <button onClick={() => window.print()} className="btn btn--dark">
                                 Print / Save PDF

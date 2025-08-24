@@ -21,6 +21,7 @@ users = db["users"]
 # Helpful indexes (safe if already exist)
 users.create_index("email", unique=True)
 exams.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
+exams.create_index("created_by")
 
 # ---------- APP / CORS ----------
 app = Flask(__name__)
@@ -54,6 +55,12 @@ auth_bp, require_auth, require_role = make_auth_blueprint(db)
 app.register_blueprint(auth_bp)
 
 # ---------- HELPERS ----------
+def _as_oid(s):
+    try:
+        return ObjectId(s)
+    except Exception:
+        return None
+
 def _exam_summary(d: dict):
     has_key = bool(d.get("answer_key")) and len(d["answer_key"]) > 0
     return {
@@ -64,7 +71,7 @@ def _exam_summary(d: dict):
         "pagesCount": len(d.get("pages") or []),
         "submissionsCount": (d.get("stats") or {}).get("submissions", 0),
         "createdBy": str(d.get("created_by")) if d.get("created_by") else None,
-        "createdAt": d.get("created_at").isoformat() if d.get("created_at") else None,
+        "createdAt": d.get("created_at").isoformat() + "Z" if d.get("created_at") else None,
     }
 
 # ---------- ROUTES (MAIN) ----------
@@ -81,25 +88,41 @@ def api_create_exam():
     answer_key = j.get("answer_key") or []
     pages = j.get("pages") or []
 
+    owner_oid = _as_oid(g.user.get("sub"))
+    if not owner_oid:
+        return jsonify({"error": "invalid user id"}), 400
+
     doc = {
         "title": title,
         "answer_key": answer_key,
         "pages": pages,
-        "created_by": ObjectId(g.user["sub"]),
+        "created_by": owner_oid,
         "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
         "stats": {"submissions": 0},
     }
     ins = exams.insert_one(doc)
-    return jsonify({"id": str(ins.inserted_id)}), 201
+    doc["_id"] = ins.inserted_id
+    return jsonify(_exam_summary(doc)), 201
 
-# List exams filtered by connected user (admins see all)
+# List exams filtered by connected user (admins see all; include legacy)
 @app.get("/api/exams")
 @require_auth
 def api_list_exams():
     proj = {"title": 1, "answer_key": 1, "pages": 1, "stats": 1, "created_by": 1, "created_at": 1}
-    q = {}
-    if g.user.get("role") != "admin":
-        q["created_by"] = ObjectId(g.user["sub"])
+
+    if g.user.get("role") == "admin":
+        q = {}
+    else:
+        user_oid = _as_oid(g.user.get("sub"))
+        user_str = g.user.get("sub")
+        q = {
+            "$or": [
+                {"created_by": user_oid},              # preferred (ObjectId)
+                {"created_by": user_str},              # tolerate legacy string
+                {"created_by": {"$exists": False}},    # legacy docs without owner
+            ]
+        }
 
     docs = list(exams.find(q, proj).sort([("created_at", -1), ("_id", -1)]))
     return jsonify([_exam_summary(d) for d in docs]), 200
@@ -108,31 +131,43 @@ def api_list_exams():
 @app.get("/ListExams")
 @require_auth
 def list_exams():
-    # Reuse the same logic as /api/exams
     proj = {"title": 1, "answer_key": 1, "pages": 1, "stats": 1, "created_by": 1, "created_at": 1}
-    q = {}
-    if g.user.get("role") != "admin":
-        q["created_by"] = ObjectId(g.user["sub"])
+    if g.user.get("role") == "admin":
+        q = {}
+    else:
+        user_oid = _as_oid(g.user.get("sub"))
+        user_str = g.user.get("sub")
+        q = {
+            "$or": [
+                {"created_by": user_oid},
+                {"created_by": user_str},
+                {"created_by": {"$exists": False}},
+            ]
+        }
 
     docs = list(exams.find(q, proj).sort([("created_at", -1), ("_id", -1)]))
     return jsonify([_exam_summary(d) for d in docs]), 200
 
-# Minimal fetch of one exam
+# Minimal fetch of one exam (admin or owner/legacy)
 @app.get("/api/exams/<eid>")
-@require_role("admin", "instructor")
+@require_auth
 def api_get_exam(eid):
-    try:
-        oid = ObjectId(eid)
-    except Exception:
+    oid = _as_oid(eid)
+    if not oid:
         return jsonify({"error": "invalid id"}), 400
 
     doc = exams.find_one({"_id": oid}, {"title": 1, "created_by": 1})
     if not doc:
         return jsonify({"error": "not found"}), 404
 
-    # Non-admins can only see their own exams
-    if g.user.get("role") != "admin" and str(doc.get("created_by")) != g.user["sub"]:
-        return jsonify({"error": "forbidden"}), 403
+    if g.user.get("role") != "admin":
+        owner_ok = (
+            doc.get("created_by") == _as_oid(g.user.get("sub"))
+            or str(doc.get("created_by") or "") == g.user.get("sub")
+            or doc.get("created_by") is None
+        )
+        if not owner_ok:
+            return jsonify({"error": "forbidden"}), 403
 
     return jsonify({"_id": str(doc["_id"]), "title": doc.get("title")}), 200
 

@@ -1,12 +1,23 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { authedFetch } from "../../JWT/api"; // sends Authorization header
 
-const API_URL = "http://localhost:5000/api/submit-answer-key"; // change if needed
+// llama.py service
+const LLAMA_BASE = process.env.REACT_APP_LLAMA_BASE || "http://localhost:5000";
+const API_URL = `${LLAMA_BASE}/api/submit-answer-key`;
 
 const KeyPage = () => {
     const { state } = useLocation();
     const navigate = useNavigate();
     const extractedText = state?.extractedText || "";
+
+    // If the upload step passed pages, use them; else infer from "🖼️ Page" markers
+    const pagesFromUpload = Array.isArray(state?.pages) ? state.pages : null;
+    const pagesFromText = Array.from(
+        extractedText.matchAll(/🖼️\s*Page\s+(\d+)/gi)
+    ).map((_, i) => ({ index: i + 1 }));
+    const pagesToSave =
+        pagesFromUpload && pagesFromUpload.length ? pagesFromUpload : pagesFromText;
 
     // UI state
     const [saving, setSaving] = useState(false);
@@ -131,13 +142,11 @@ const KeyPage = () => {
         );
     };
 
-    // 1) Click on Save → open modal
     const onSaveClick = () => {
         setShowModal(true);
         setErrorMsg("");
     };
 
-    // 2) Confirm in modal → build payload & POST
     const confirmSave = async () => {
         if (!title.trim()) {
             setErrorMsg("Please enter a title before saving.");
@@ -165,7 +174,7 @@ const KeyPage = () => {
             } else if (block.type === "mcq") {
                 answerKey.push({
                     question_id: `q${index}`,
-                    type: "mcq",
+                    type: "mcq_single", // <- align with backend grader
                     expected_answer: selectedChoices[`q${index}`] || "",
                     question: block.content.split("\n")[0],
                     options: block.content.split("\n").slice(1),
@@ -176,28 +185,33 @@ const KeyPage = () => {
         const payload = {
             title: title.trim(),
             answer_key: answerKey,
+            pages: pagesToSave, // <- makes ListExams show correct page count
         };
 
         try {
-            const res = await fetch(API_URL, {
+            const res = await authedFetch(API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
+
             if (!res.ok) {
-                const t = await res.text();
-                throw new Error(t || `HTTP ${res.status}`);
+                let msg = `HTTP ${res.status}`;
+                try {
+                    const j = await res.json();
+                    if (j?.error) msg = j.error;
+                } catch {}
+                throw new Error(msg);
             }
 
             setShowModal(false);
             setSaving(false);
             setSuccessMsg("Correction uploaded successfully ✅ Redirecting…");
-
             setTimeout(() => navigate("/Student"), 1200);
         } catch (err) {
             console.error(err);
             setSaving(false);
-            setErrorMsg("Failed to save the correction key.");
+            setErrorMsg(err.message || "Failed to save the correction key.");
         }
     };
 
@@ -295,7 +309,6 @@ const KeyPage = () => {
                 </button>
             </div>
 
-            {/* Simple modal */}
             {showModal && (
                 <div
                     style={{

@@ -1,7 +1,8 @@
+// src/Pages/Result/Result.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import "./Result.css";
-import { GRADER_BASE, authedFetch } from "../../JWT/api";
+import { GRADER_BASE, SUB_API, authedFetch } from "../../JWT/api";
 
 export default function Result() {
     const { submissionId } = useParams();
@@ -23,16 +24,15 @@ export default function Result() {
                 let sub;
 
                 if (submissionId && submissionId !== "undefined") {
+                    // fetch submission from the corrector server (:5005)
                     const r = await authedFetch(
-                        `${GRADER_BASE}/api/submissions/${encodeURIComponent(submissionId)}`
+                        `${SUB_API}/submissions/${encodeURIComponent(submissionId)}`
                     );
                     if (!r.ok) throw new Error(`Failed to fetch submission (${r.status})`);
                     sub = await r.json();
                 } else {
                     const qs = student ? `?student_id=${encodeURIComponent(student)}` : "";
-                    const r = await authedFetch(
-                        `${GRADER_BASE}/api/submissions/latest${qs}`
-                    );
+                    const r = await authedFetch(`${SUB_API}/submissions/latest${qs}`);
                     if (!r.ok) throw new Error(`No latest submission found (${r.status})`);
                     sub = await r.json();
                 }
@@ -40,6 +40,7 @@ export default function Result() {
                 if (!alive) return;
                 setData(sub);
 
+                // fetch exam info from the main server (:5006)
                 if (sub?.exam_id) {
                     const rex = await authedFetch(
                         `${GRADER_BASE}/api/exams/${encodeURIComponent(sub.exam_id)}`
@@ -64,9 +65,7 @@ export default function Result() {
 
     const total = data?.score ?? null;
     const feedback = data?.feedback || "";
-    const details = Array.isArray(data?.grading_details)
-        ? data.grading_details
-        : [];
+    const details = Array.isArray(data?.grading_details) ? data.grading_details : [];
     const percent = useMemo(
         () => (total == null ? null : Math.round((total / 20) * 100)),
         [total]
@@ -89,7 +88,7 @@ export default function Result() {
 
     const barClass = percent >= 50 ? "bar--ok" : "bar--bad";
 
-    // ← exam id for the Grades page
+    // exam id for the Grades page
     const examId = data?.exam_id || exam?._id;
 
     return (
@@ -168,9 +167,7 @@ export default function Result() {
                                     const ok = d.awarded >= d.points - 1e-9;
                                     return (
                                         <tr key={idx}>
-                                            <td className="strong">
-                                                {d.question_id || `#${d.index}`}
-                                            </td>
+                                            <td className="strong">{d.question_id || `#${d.index}`}</td>
                                             <td className="muted">{d.type}</td>
                                             <td>
                                                 <span className="chip">{fmt(d.expected)}</span>
@@ -180,9 +177,7 @@ export default function Result() {
                                             </td>
                                             <td className="right">{round2(d.points)}</td>
                                             <td className="right">
-                          <span
-                              className={`pill ${ok ? "pill--ok" : "pill--bad"}`}
-                          >
+                          <span className={`pill ${ok ? "pill--ok" : "pill--bad"}`}>
                             {round2(d.awarded)}
                           </span>
                                             </td>
@@ -213,14 +208,18 @@ export default function Result() {
                                 onClick={async () => {
                                     try {
                                         const id =
-                                            data?._id ||
-                                            (submissionId !== "undefined" ? submissionId : null);
+                                            data?._id || (submissionId !== "undefined" ? submissionId : null);
                                         if (!id) return;
+
+                                        // regrade on corrector server (POST preferred)
                                         await authedFetch(
-                                            `${GRADER_BASE}/submissions/${encodeURIComponent(id)}/regrade`
+                                            `${SUB_API}/submissions/${encodeURIComponent(id)}/regrade`,
+                                            { method: "POST" }
                                         );
+
+                                        // refetch the submission from corrector
                                         const res = await authedFetch(
-                                            `${GRADER_BASE}/api/submissions/${encodeURIComponent(id)}`
+                                            `${SUB_API}/submissions/${encodeURIComponent(id)}`
                                         );
                                         if (res.ok) setData(await res.json());
                                     } catch {

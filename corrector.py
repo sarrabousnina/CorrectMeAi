@@ -1,19 +1,21 @@
-# corrector.py
+# corrector.py — GRADING/SUBMISSIONS ONLY on port 5005
 import os
 import re
 from difflib import SequenceMatcher
 from bson import ObjectId
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
+
+import config
 
 # ---------- DB ----------
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb+srv://admin:admin@examcluster.dpdod2i.mongodb.net/?retryWrites=true&w=majority&appName=ExamCluster",
-)
+MONGO_URI = os.getenv("MONGO_URI", config.MONGO_URI)
 client = MongoClient(MONGO_URI)
 db = client["exam_system"]
 submissions = db["submissions"]
 exams = db["exams"]
+
+submissions.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
+exams.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
 
 # ---------- grading helpers ----------
 def _norm(s):
@@ -22,17 +24,14 @@ def _norm(s):
     s = re.sub(r"\s+", " ", s)
     return s
 
-
 def _similar(a, b):
     return SequenceMatcher(None, _norm(a), _norm(b)).ratio()
-
 
 def _num(x):
     if isinstance(x, (int, float)):
         return float(x)
     m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", str(x or ""))
     return float(m.group(0)) if m else None
-
 
 def _grade_one(qtype, expected, student, pts, allow_near=False):
     awarded = 0.0
@@ -58,10 +57,7 @@ def _grade_one(qtype, expected, student, pts, allow_near=False):
         if "value" in (expected or {}):
             ok = sval is not None and abs(sval - float(expected["value"])) <= tol
         else:
-            ok = any(
-                sval is not None and abs(sval - float(v)) <= tol
-                for v in (expected or {}).get("values", [])
-            )
+            ok = any(sval is not None and abs(sval - float(v)) <= tol for v in (expected or {}).get("values", []))
         awarded = pts if ok else 0.0
         comment = f"numeric: expected {expected}, got {student}"
     elif qtype == "regex":
@@ -74,13 +70,11 @@ def _grade_one(qtype, expected, student, pts, allow_near=False):
         comment = f"strict: expected {expected}, got {student}"
     return max(0.0, min(float(pts), float(awarded))), comment
 
-
 def score_submission(submission_id: str, allow_near=False):
     sub = submissions.find_one({"_id": ObjectId(submission_id)})
     if not sub:
         return {"error": "Submission not found."}
 
-    # Only light fields from exam (ignore heavy fields like images)
     exam = exams.find_one({"_id": sub["exam_id"]}, {"answer_key": 1, "title": 1})
     if not exam:
         return {"error": "Exam not found."}
@@ -110,19 +104,17 @@ def score_submission(submission_id: str, allow_near=False):
         student_answer = stud.get(stud_key)
         got, comment = _grade_one(qtype, expected, student_answer, pts, allow_near)
         total += got
-        details.append(
-            {
-                "index": idx + 1,
-                "question_id": qid or f"Q{idx+1}",
-                "matched_student_key": stud_key if stud_key in stud else None,
-                "type": qtype,
-                "points": round(pts, 3),
-                "awarded": round(got, 3),
-                "expected": expected,
-                "student": student_answer,
-                "comment": comment,
-            }
-        )
+        details.append({
+            "index": idx + 1,
+            "question_id": qid or f"Q{idx+1}",
+            "matched_student_key": stud_key if stud_key in stud else None,
+            "type": qtype,
+            "points": round(pts, 3),
+            "awarded": round(got, 3),
+            "expected": expected,
+            "student": student_answer,
+            "comment": comment,
+        })
 
     total = max(0.0, min(20.0, round(total, 3)))
     wrong = [d for d in details if d["awarded"] + 1e-9 < d["points"]]
@@ -140,23 +132,20 @@ def score_submission(submission_id: str, allow_near=False):
     )
     return {"score": total, "feedback": feedback, "details_count": len(details)}
 
-
 def _as_oid_or_str(v):
     try:
         return ObjectId(v)
     except Exception:
         return v
 
-
 # ---------- Flask API ----------
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
+from auth import require_auth, require_role  # decorators ONLY (no auth blueprint here)
 
 app = Flask(__name__)
 
-# --- CORS: allow React dev server & preflights ---
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
-
 CORS(
     app,
     resources={
@@ -168,52 +157,40 @@ CORS(
 
 @app.after_request
 def _add_cors_headers(resp):
-    # Ensure the preflight & actual responses carry the correct headers
     resp.headers.setdefault("Access-Control-Allow-Origin", FRONTEND_ORIGIN)
     resp.headers.setdefault("Vary", "Origin")
     resp.headers.setdefault("Access-Control-Allow-Headers", "Content-Type, Authorization")
     resp.headers.setdefault("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
     return resp
 
-# Explicit preflight endpoints so OPTIONS always returns 200 OK
 @app.route("/api/<path:_any>", methods=["OPTIONS"])
-def _preflight_api(_any):
-    return ("", 200)
-
 @app.route("/submissions/<path:_any>", methods=["OPTIONS"])
-def _preflight_submissions(_any):
+def _preflight_api(_any=None):
     return ("", 200)
 
-# --- AUTH: register blueprint & decorators ---
-from auth import make_auth_blueprint
+@app.get("/health")
+def health():
+    return jsonify({"ok": True})
 
-auth_bp, require_auth, require_role = make_auth_blueprint(db)
-app.register_blueprint(auth_bp)
+# ---- Submissions APIs (protected) ----
 
-def _to_json(doc):
-    if not doc:
-        return None
-    out = {}
-    for k, v in doc.items():
-        out[k] = str(v) if isinstance(v, ObjectId) else v
-    if "exam_id" in out and isinstance(out["exam_id"], ObjectId):
-        out["exam_id"] = str(out["exam_id"])
-    return out
-
-
-# --- submissions for a specific exam ---
+# submissions for a specific exam
 @app.get("/api/exams/<eid>/submissions")
 @require_role("admin", "instructor")
 def api_submissions_by_exam(eid):
     oid = _as_oid_or_str(eid)
-    ex = exams.find_one({"_id": oid}, {"title": 1})
+    ex = exams.find_one({"_id": oid}, {"title": 1, "created_by": 1})
     exam_obj = {"_id": str(oid), "title": ex.get("title") if ex else None}
     cur = submissions.find({"exam_id": oid}).sort([("created_at", -1), ("_id", -1)])
-    items = [_to_json(d) for d in cur]
+    items = []
+    for d in cur:
+        d["_id"] = str(d["_id"])
+        if isinstance(d.get("exam_id"), ObjectId):
+            d["exam_id"] = str(d["exam_id"])
+        items.append(d)
     return jsonify({"exam": exam_obj, "items": items}), 200
 
-
-# --- submissions for the *latest* exam ---
+# latest exam submissions
 @app.get("/api/exams/latest/submissions")
 @require_role("admin", "instructor")
 def api_latest_exam_submissions():
@@ -223,29 +200,28 @@ def api_latest_exam_submissions():
         return jsonify({"error": "No exams found"}), 404
 
     exam_obj = {"_id": str(latest["_id"]), "title": latest.get("title", "Untitled Exam")}
-    cur = submissions.find({"exam_id": latest["_id"]}).sort(
-        [("created_at", -1), ("_id", -1)]
-    )
-    items = [_to_json(d) for d in cur]
+    cur = submissions.find({"exam_id": latest["_id"]}).sort([("created_at", -1), ("_id", -1)])
+    items = []
+    for d in cur:
+        d["_id"] = str(d["_id"])
+        if isinstance(d.get("exam_id"), ObjectId):
+            d["exam_id"] = str(d["exam_id"])
+        items.append(d)
     return jsonify({"exam": exam_obj, "items": items}), 200
 
-
-@app.get("/health")
-def health():
-    return jsonify({"ok": True})
-
-
-# Get one submission (used by Result page)
+# get one submission
 @app.get("/api/submissions/<sid>")
 @require_role("admin", "instructor")
 def api_get_submission(sid):
     doc = submissions.find_one({"_id": ObjectId(sid)})
     if not doc:
         return jsonify({"error": "not found"}), 404
-    return jsonify(_to_json(doc))
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("exam_id"), ObjectId):
+        doc["exam_id"] = str(doc["exam_id"])
+    return jsonify(doc)
 
-
-# Regrade one submission and save score/feedback (legacy GET)
+# regrade (legacy GET)
 @app.get("/submissions/<sid>/regrade")
 @require_role("admin", "instructor")
 def api_regrade_get(sid):
@@ -253,10 +229,12 @@ def api_regrade_get(sid):
     if "error" in r:
         return jsonify(r), 400
     doc = submissions.find_one({"_id": ObjectId(sid)})
-    return jsonify(_to_json(doc))
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("exam_id"), ObjectId):
+        doc["exam_id"] = str(doc["exam_id"])
+    return jsonify(doc)
 
-
-# Preferred POST regrade endpoint
+# preferred POST regrade
 @app.post("/api/submissions/<sid>/regrade")
 @require_role("admin", "instructor")
 def api_regrade_post(sid):
@@ -264,10 +242,12 @@ def api_regrade_post(sid):
     if "error" in r:
         return jsonify(r), 400
     doc = submissions.find_one({"_id": ObjectId(sid)})
-    return jsonify(_to_json(doc))
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("exam_id"), ObjectId):
+        doc["exam_id"] = str(doc["exam_id"])
+    return jsonify(doc)
 
-
-# Latest submission (optional student filter)
+# latest submission (optional student filter)
 @app.get("/api/submissions/latest")
 @require_role("admin", "instructor")
 def api_latest_submission():
@@ -277,21 +257,11 @@ def api_latest_submission():
     doc = next(cur, None)
     if not doc:
         return jsonify({"error": "not found"}), 404
-    return jsonify(_to_json(doc))
-
-
-# Fetch exam title
-@app.get("/api/exams/<eid>")
-@require_role("admin", "instructor")
-def api_get_exam(eid):
-    doc = exams.find_one({"_id": ObjectId(eid)}, {"title": 1})
-    if not doc:
-        return jsonify({"error": "not found"}), 404
     doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("exam_id"), ObjectId):
+        doc["exam_id"] = str(doc["exam_id"])
     return jsonify(doc)
 
-
 if __name__ == "__main__":
-    # pip install flask flask-cors pymongo dnspython pyjwt bcrypt
     port = int(os.getenv("PORT", "5005"))
     app.run(host="0.0.0.0", port=port, debug=True)

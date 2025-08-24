@@ -1,8 +1,8 @@
-// Grades.jsx
+// src/Pages/Grades/Grades.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./Grades.css";
-import { GRADER_BASE, authedFetch } from "../../JWT/api";
+import { SUB_API, authedFetch } from "../../JWT/api"; // <<— use corrector base
 
 export default function Grades() {
     const { examId: examIdFromRoute } = useParams();
@@ -23,9 +23,10 @@ export default function Grades() {
                 setLoading(true);
                 setErr("");
 
+                // Submissions endpoints live on the corrector server (:5005)
                 const url = examIdFromRoute
-                    ? `${GRADER_BASE}/api/exams/${encodeURIComponent(examIdFromRoute)}/submissions`
-                    : `${GRADER_BASE}/api/exams/latest/submissions`;
+                    ? `${SUB_API}/exams/${encodeURIComponent(examIdFromRoute)}/submissions`
+                    : `${SUB_API}/exams/latest/submissions`;
 
                 const r = await authedFetch(url);
                 if (!r.ok) throw new Error(`Failed to load (${r.status})`);
@@ -38,11 +39,9 @@ export default function Grades() {
                     id: s._id || s.id,
                     student: s.student_id || s.student || "—",
                     score: typeof s.score === "number" ? s.score : null,
-                    percent:
-                        typeof s.score === "number" ? Math.round((s.score / 20) * 100) : null,
+                    percent: typeof s.score === "number" ? Math.round((s.score / 20) * 100) : null,
                     feedback: s.feedback || "",
-                    updatedAt:
-                        s.updated_at || s.updatedAt || s.created_at || s.date || null,
+                    updatedAt: s.updated_at || s.updatedAt || s.created_at || s.date || null,
                     raw: s,
                 }));
 
@@ -139,7 +138,8 @@ export default function Grades() {
         const ids = filtered.map((r) => r.id).filter(Boolean);
         for (const id of ids) {
             try {
-                await authedFetch(`${GRADER_BASE}/submissions/${id}/regrade`);
+                // regrade endpoint is on the corrector server
+                await authedFetch(`${SUB_API}/submissions/${id}/regrade`, { method: "POST" });
             } catch {
                 /* ignore individual failures */
             }
@@ -165,11 +165,7 @@ export default function Grades() {
                                         <span>
                       Average <strong>{stats.avg.toFixed(2)}</strong> (/20)
                     </span>
-                                        <span
-                                            className={`badge ${badgeClass(stats.avgPct)
-                                                .split(" ")
-                                                .pop()}`}
-                                        >
+                                        <span className={`badge ${badgeClass(stats.avgPct).split(" ").pop()}`}>
                       {stats.avgPct}% avg
                     </span>
                                         <span>Best {stats.best.toFixed(2)}</span>
@@ -181,12 +177,7 @@ export default function Grades() {
 
                         <div
                             className="grades__right no-print"
-                            style={{
-                                gap: 8,
-                                display: "flex",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                            }}
+                            style={{ gap: 8, display: "flex", alignItems: "center", flexWrap: "wrap" }}
                         >
                             <input
                                 className="input"
@@ -196,9 +187,7 @@ export default function Grades() {
                             />
                             <div className="seg">
                                 <button
-                                    className={`seg__btn ${
-                                        sort.by === "score" ? "is-active" : ""
-                                    }`}
+                                    className={`seg__btn ${sort.by === "score" ? "is-active" : ""}`}
                                     onClick={() =>
                                         setSort((s) => ({
                                             by: "score",
@@ -209,24 +198,18 @@ export default function Grades() {
                                     Score {sort.by === "score" ? (sort.dir === "desc" ? "↓" : "↑") : ""}
                                 </button>
                                 <button
-                                    className={`seg__btn ${
-                                        sort.by === "student" ? "is-active" : ""
-                                    }`}
+                                    className={`seg__btn ${sort.by === "student" ? "is-active" : ""}`}
                                     onClick={() =>
                                         setSort((s) => ({
                                             by: "student",
-                                            dir:
-                                                s.by === "student" && s.dir === "asc" ? "desc" : "asc",
+                                            dir: s.by === "student" && s.dir === "asc" ? "desc" : "asc",
                                         }))
                                     }
                                 >
-                                    Student{" "}
-                                    {sort.by === "student" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
+                                    Student {sort.by === "student" ? (sort.dir === "asc" ? "↑" : "↓") : ""}
                                 </button>
                                 <button
-                                    className={`seg__btn ${
-                                        sort.by === "date" ? "is-active" : ""
-                                    }`}
+                                    className={`seg__btn ${sort.by === "date" ? "is-active" : ""}`}
                                     onClick={() =>
                                         setSort((s) => ({
                                             by: "date",
@@ -240,18 +223,10 @@ export default function Grades() {
                             <button className="btn btn--ghost" onClick={() => window.print()}>
                                 Print
                             </button>
-                            <button
-                                className="btn btn--ghost"
-                                onClick={toCSV}
-                                disabled={!filtered.length}
-                            >
+                            <button className="btn btn--ghost" onClick={toCSV} disabled={!filtered.length}>
                                 Export CSV
                             </button>
-                            <button
-                                className="btn btn--primary"
-                                onClick={regradeAll}
-                                disabled={!filtered.length}
-                            >
+                            <button className="btn btn--primary" onClick={regradeAll} disabled={!filtered.length}>
                                 Regrade All
                             </button>
                         </div>
@@ -278,30 +253,18 @@ export default function Grades() {
                                     <tr
                                         key={r.id}
                                         className="rowlink"
-                                        onClick={() =>
-                                            navigate(
-                                                `/result/${r.id}?student=${encodeURIComponent(
-                                                    r.student
-                                                )}`
-                                            )
-                                        }
+                                        onClick={() => navigate(`/result/${r.id}?student=${encodeURIComponent(r.student)}`)}
                                         title="Open detailed result"
                                     >
                                         <td className="strong">{r.student}</td>
                                         <td className="muted mono">{r.id}</td>
+                                        <td className="right">{r.score != null ? r.score.toFixed(2) : "—"}</td>
                                         <td className="right">
-                                            {r.score != null ? r.score.toFixed(2) : "—"}
-                                        </td>
-                                        <td className="right">
-                        <span className={badgeClass(r.percent)}>
-                          {r.percent ?? "—"}%
-                        </span>
+                                            <span className={badgeClass(r.percent)}>{r.percent ?? "—"}%</span>
                                         </td>
                                         <td className="feedback-cell">{r.feedback || "—"}</td>
                                         <td className="right muted">
-                                            {r.updatedAt
-                                                ? new Date(r.updatedAt).toLocaleString()
-                                                : "—"}
+                                            {r.updatedAt ? new Date(r.updatedAt).toLocaleString() : "—"}
                                         </td>
                                     </tr>
                                 ))}

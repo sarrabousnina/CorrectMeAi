@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "./ListExams.css";
+import { authedFetch } from "../../JWT/api";
 
 const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5006";
 
@@ -19,13 +20,23 @@ export default function ListExams() {
             try {
                 setLoading(true);
                 setErr("");
-                const r = await fetch(`${API_BASE}/ListExams`, { headers: { Accept: "application/json" } });
-                if (!r.ok) throw new Error(`Failed to load exams (${r.status})`);
+
+                // call protected route with token
+                const r = await authedFetch(`${API_BASE}/api/exams`, {
+                    headers: { Accept: "application/json" },
+                });
+
+                if (!r.ok) {
+                    // surface 401 explicitly for UX
+                    if (r.status === 401) throw new Error("Failed to load exams (401)");
+                    throw new Error(`Failed to load exams (${r.status})`);
+                }
+
                 const raw = await r.json();
-                const arr = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+                const arr = Array.isArray(raw) ? raw : [];
 
                 const normalized = arr.map((e) => {
-                    // support either backend's hasKey or derive from answer_key if present
+                    // support either hasKey or derive from answer_key if present
                     const hasKey =
                         typeof e.hasKey === "boolean"
                             ? e.hasKey
@@ -83,8 +94,8 @@ export default function ListExams() {
     return (
         <div className="list-exams-container">
             <div className="list-exams-header">
-                <h1>All Exams</h1>
-                <p>Temporary public list (no client filter yet)</p>
+                <h1>Your Exams</h1>
+                <p>Only exams created by the signed-in user (admins see all).</p>
                 <div className="list-exams-filters">
                     <input
                         type="search"

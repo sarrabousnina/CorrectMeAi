@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import "./SideBar.css";
 
 export default function Sidebar({
@@ -8,11 +8,12 @@ export default function Sidebar({
                                     onToggleCollapse = () => {},
                                     onCloseMobile = () => {},
                                 }) {
+    const nav = useNavigate();
+
     // ---- THEME: read, initialize, and persist
     const getInitialTheme = () => {
         const saved = localStorage.getItem("theme");
         if (saved === "dark" || saved === "light") return saved;
-        // fallback to system
         return window.matchMedia &&
         window.matchMedia("(prefers-color-scheme: dark)").matches
             ? "dark"
@@ -54,6 +55,13 @@ export default function Sidebar({
         return () => window.removeEventListener("resize", apply);
     }, [collapsed, mobileOpen]);
 
+    // ---- LOGOUT HANDLER ----
+    function handleLogout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        nav("/login", { replace: true });
+    }
+
     return (
         <aside
             className={[
@@ -83,9 +91,9 @@ export default function Sidebar({
                     aria-label="Toggle dark mode"
                     title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 >
-          <span className="sb__themeIcon" aria-hidden="true">
-            {theme === "dark" ? "☀️" : "🌙"}
-          </span>
+                    <span className="sb__themeIcon" aria-hidden="true">
+                        {theme === "dark" ? "☀️" : "🌙"}
+                    </span>
                 </button>
             </div>
 
@@ -105,6 +113,14 @@ export default function Sidebar({
                     <span className="sb__label">Grades</span>
                 </NavLink>
             </nav>
+
+            {/* LOGOUT BUTTON AT THE BOTTOM */}
+            <div className="sb__bottom">
+                <button className="sb__link sb__logout" onClick={handleLogout}>
+                    <span className="sb__icon">🚪</span>
+                    <span className="sb__label">Logout</span>
+                </button>
+            </div>
         </aside>
     );
 }

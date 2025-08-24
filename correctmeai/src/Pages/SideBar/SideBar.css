@@ -249,3 +249,17 @@ body.theme-light .sb__link.active {
   border-color: rgba(31,140,255,0.35);
 }
 */
+.sb__bottom {
+    margin-top: auto; /* pushes logout to the bottom */
+    padding: 1rem;
+}
+
+.sb__logout {
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}

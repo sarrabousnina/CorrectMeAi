@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import "./Result.css";
-
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5005";
+import { GRADER_BASE, authedFetch } from "../../JWT/api";
 
 export default function Result() {
     const { submissionId } = useParams();
@@ -24,12 +23,16 @@ export default function Result() {
                 let sub;
 
                 if (submissionId && submissionId !== "undefined") {
-                    const r = await fetch(`${API_BASE}/api/submissions/${submissionId}`);
+                    const r = await authedFetch(
+                        `${GRADER_BASE}/api/submissions/${encodeURIComponent(submissionId)}`
+                    );
                     if (!r.ok) throw new Error(`Failed to fetch submission (${r.status})`);
                     sub = await r.json();
                 } else {
                     const qs = student ? `?student_id=${encodeURIComponent(student)}` : "";
-                    const r = await fetch(`${API_BASE}/api/submissions/latest${qs}`);
+                    const r = await authedFetch(
+                        `${GRADER_BASE}/api/submissions/latest${qs}`
+                    );
                     if (!r.ok) throw new Error(`No latest submission found (${r.status})`);
                     sub = await r.json();
                 }
@@ -38,7 +41,9 @@ export default function Result() {
                 setData(sub);
 
                 if (sub?.exam_id) {
-                    const rex = await fetch(`${API_BASE}/api/exams/${sub.exam_id}`);
+                    const rex = await authedFetch(
+                        `${GRADER_BASE}/api/exams/${encodeURIComponent(sub.exam_id)}`
+                    );
                     if (rex.ok) {
                         const ex = await rex.json();
                         if (alive) setExam(ex);
@@ -52,24 +57,35 @@ export default function Result() {
         }
 
         fetchData();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [submissionId, student]);
 
     const total = data?.score ?? null;
     const feedback = data?.feedback || "";
-    const details = Array.isArray(data?.grading_details) ? data.grading_details : [];
-    const percent = useMemo(() => (total == null ? null : Math.round((total / 20) * 100)), [total]);
+    const details = Array.isArray(data?.grading_details)
+        ? data.grading_details
+        : [];
+    const percent = useMemo(
+        () => (total == null ? null : Math.round((total / 20) * 100)),
+        [total]
+    );
 
     if (loading) return <div className="page pad text-muted">Loading result…</div>;
     if (err) return <div className="page pad text-error">Error: {err}</div>;
     if (!data) return <div className="page pad">No data found.</div>;
 
     const gradeClass =
-        percent == null ? "badge--neutral" :
-            percent >= 85   ? "badge--emerald" :
-                percent >= 70   ? "badge--green" :
-                    percent >= 50   ? "badge--amber" :
-                        "badge--rose";
+        percent == null
+            ? "badge--neutral"
+            : percent >= 85
+                ? "badge--emerald"
+                : percent >= 70
+                    ? "badge--green"
+                    : percent >= 50
+                        ? "badge--amber"
+                        : "badge--rose";
 
     const barClass = percent >= 50 ? "bar--ok" : "bar--bad";
 
@@ -80,15 +96,20 @@ export default function Result() {
         <div className="page bg">
             <div className="container">
                 <div className="card">
-
                     {/* Header */}
                     <header className="card__header">
                         <div className="head-left">
                             <h1 className="title">{exam?.title || "Exam Result"}</h1>
                             <div className="meta">
-                                <div>Student: <span className="meta__value">{data.student_id || "—"}</span></div>
+                                <div>
+                                    Student:{" "}
+                                    <span className="meta__value">{data.student_id || "—"}</span>
+                                </div>
                                 <div className="truncate">
-                                    Submission ID: <span className="meta__mono">{data._id || submissionId || "latest"}</span>
+                                    Submission ID:{" "}
+                                    <span className="meta__mono">
+                    {data._id || submissionId || "latest"}
+                  </span>
                                 </div>
                             </div>
                         </div>
@@ -102,7 +123,10 @@ export default function Result() {
                                 </div>
 
                                 <div className="progress">
-                                    <div className={`bar ${barClass}`} style={{ width: `${percent}%` }} />
+                                    <div
+                                        className={`bar ${barClass}`}
+                                        style={{ width: `${percent}%` }}
+                                    />
                                 </div>
                                 <div className="progress__caption">Progress</div>
                             </div>
@@ -144,13 +168,23 @@ export default function Result() {
                                     const ok = d.awarded >= d.points - 1e-9;
                                     return (
                                         <tr key={idx}>
-                                            <td className="strong">{d.question_id || `#${d.index}`}</td>
+                                            <td className="strong">
+                                                {d.question_id || `#${d.index}`}
+                                            </td>
                                             <td className="muted">{d.type}</td>
-                                            <td><span className="chip">{fmt(d.expected)}</span></td>
-                                            <td><span className="chip">{fmt(d.student)}</span></td>
+                                            <td>
+                                                <span className="chip">{fmt(d.expected)}</span>
+                                            </td>
+                                            <td>
+                                                <span className="chip">{fmt(d.student)}</span>
+                                            </td>
                                             <td className="right">{round2(d.points)}</td>
                                             <td className="right">
-                                                <span className={`pill ${ok ? "pill--ok" : "pill--bad"}`}>{round2(d.awarded)}</span>
+                          <span
+                              className={`pill ${ok ? "pill--ok" : "pill--bad"}`}
+                          >
+                            {round2(d.awarded)}
+                          </span>
                                             </td>
                                             <td className="muted">{d.comment}</td>
                                         </tr>
@@ -163,7 +197,10 @@ export default function Result() {
                         <div className="actions pad no-print">
                             {/* View Grades for this exam */}
                             {examId && (
-                                <Link to={`/exam/${encodeURIComponent(examId)}/grades`} className="btn btn--dark">
+                                <Link
+                                    to={`/exam/${encodeURIComponent(examId)}/grades`}
+                                    className="btn btn--dark"
+                                >
                                     View all grades
                                 </Link>
                             )}
@@ -175,12 +212,20 @@ export default function Result() {
                             <button
                                 onClick={async () => {
                                     try {
-                                        const id = data?._id || (submissionId !== "undefined" ? submissionId : null);
+                                        const id =
+                                            data?._id ||
+                                            (submissionId !== "undefined" ? submissionId : null);
                                         if (!id) return;
-                                        await fetch(`${API_BASE}/submissions/${id}/regrade`);
-                                        const res = await fetch(`${API_BASE}/api/submissions/${id}`);
+                                        await authedFetch(
+                                            `${GRADER_BASE}/submissions/${encodeURIComponent(id)}/regrade`
+                                        );
+                                        const res = await authedFetch(
+                                            `${GRADER_BASE}/api/submissions/${encodeURIComponent(id)}`
+                                        );
                                         if (res.ok) setData(await res.json());
-                                    } catch {}
+                                    } catch {
+                                        /* ignore */
+                                    }
                                 }}
                                 className="btn btn--primary"
                             >
@@ -197,7 +242,11 @@ export default function Result() {
 function fmt(v) {
     if (v === null || v === undefined) return "—";
     if (typeof v === "string") return v;
-    try { return JSON.stringify(v); } catch { return String(v); }
+    try {
+        return JSON.stringify(v);
+    } catch {
+        return String(v);
+    }
 }
 function round2(n) {
     if (n === null || n === undefined) return "0.00";

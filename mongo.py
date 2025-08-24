@@ -1,17 +1,16 @@
 # mongo.py
+from pymongo import MongoClient, DESCENDING
+import config  # <— new
 
-from pymongo import MongoClient
+client = MongoClient(config.MONGO_URI)
+db = client["exam_system"]
 
-# Connection string to your MongoDB Atlas cluster
-CONNECTION_STRING = (
-    "mongodb+srv://admin:admin@examcluster.dpdod2i.mongodb.net/"
-    "?retryWrites=true&w=majority&appName=ExamCluster"
-)
+# Collections
+exams_collection        = db["exams"]
+submissions_collection  = db["submissions"]
+users_collection        = db["users"] 
 
-# Create the client and select the database
-client = MongoClient(CONNECTION_STRING)
-db = client["exam_system"]  # Database name
-
-# Define the collections you’ll use
-exams_collection = db["exams"]
-submissions_collection = db["submissions"]
+# Helpful indexes (safe if already exist)
+users_collection.create_index("email", unique=True)
+submissions_collection.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
+exams_collection.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])

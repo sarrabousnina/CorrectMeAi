@@ -23,4 +23,4 @@ def list_exams():
     return jsonify(out)
 
 if __name__ == "__main__":
-    app.run(port=5005, debug=True)
+    app.run(port=5006, debug=True)

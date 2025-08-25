@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
-import Sidebar from "./Pages/SideBar/SideBar";
-import "./Pages/SideBar/SideBar.css";
+import Sidebar from "./Components/SideBar/SideBar";
+import "./Components/SideBar/SideBar.css";
 
 /**
  * Desktop:

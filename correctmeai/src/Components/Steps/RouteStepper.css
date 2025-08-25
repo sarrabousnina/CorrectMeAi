@@ -1,96 +1,198 @@
-/* Sticky inside the page, a bit lower from the very top */
-.stepper-sticky {
-    position: sticky;
-    top: 24px;               /* ⬅️ moved down */
-    z-index: 5;
-    margin: 0 16px 10px 16px;
+/* RouteStepper.css - Wide, Compact, Gradient Active, Bigger Numbers */
+
+/* CSS Variables */
+:root {
+    --stepper-bg: rgba(15, 23, 42, 0.5);
+    --stepper-border: rgba(148, 163, 184, 0.2);
+    --stepper-text: #f1f5f9;
+    --stepper-text-muted: #94a3b8;
+    --stepper-dot-bg: rgba(30, 41, 59, 0.7);
+    --stepper-dot-border: rgba(148, 163, 184, 0.3);
+    --stepper-dot-text: #cbd5e1;
+    --stepper-active-bg: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    --stepper-active-text: #ffffff;
+    --stepper-done-bg: linear-gradient(135deg, #059669 0%, #047857 100%);
+    --stepper-done-text: #ffffff;
+    --stepper-connector: rgba(148, 163, 184, 0.2);
+    --stepper-connector-done: linear-gradient(90deg, #059669 0%, #047857 100%);
+    --stepper-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --stepper-shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
-/* Transparent container */
-.stepper-wrap { position: relative; background: transparent; padding: 0; border: 0; }
+body.theme-light {
+    --stepper-bg: rgba(248, 250, 252, 0.6);
+    --stepper-border: rgba(148, 163, 184, 0.2);
+    --stepper-text: #1e293b;
+    --stepper-text-muted: #64748b;
+    --stepper-dot-bg: rgba(255, 255, 255, 0.7);
+    --stepper-dot-border: rgba(148, 163, 184, 0.3);
+    --stepper-dot-text: #64748b;
+    --stepper-active-bg: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    --stepper-active-text: #ffffff;
+    --stepper-done-bg: linear-gradient(135deg, #059669 0%, #047857 100%);
+    --stepper-done-text: #ffffff;
+    --stepper-connector: rgba(148, 163, 184, 0.3);
+    --stepper-connector-done: linear-gradient(90deg, #059669 0%, #047857 100%);
+    --stepper-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --stepper-shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
 
-/* Row centers connectors with dots/pill */
+/* Sticky container */
+.stepper-sticky {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    padding: 0 0.5rem;
+}
+
+/* Wrapper */
+.stepper-wrap {
+    background: var(--stepper-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--stepper-border);
+    border-radius: 1rem;
+    box-shadow: var(--stepper-shadow);
+    padding: 0.5rem 1rem;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Stepper list */
 .stepper__list {
     display: flex;
-    align-items: center;     /* centers connector vertically with dot/pill */
-    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
+/* Step item */
 .stepper__item {
-    display: grid;
-    place-items: center;
-    min-width: 42px;
-}
-
-/* Numbered dot (unchanged) */
-.stepper__dot {
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    background: transparent;
-    border: 2px solid rgba(31,140,255,0.45);
-    color: var(--sb-text, #dfe6ee);
-    transition: transform .18s cubic-bezier(.22,.61,.36,1), border-color .25s, background .25s, box-shadow .25s;
-}
-.stepper__item.is-clickable .stepper__dot { cursor: pointer; }
-.stepper__item.is-clickable .stepper__dot:hover {
-    transform: translateY(-1px) scale(1.06);
-    box-shadow: 0 6px 18px rgba(31,140,255,0.22);
-}
-.stepper__num { font-size: 12px; font-weight: 800; line-height: 1; }
-
-/* Done/active states for dots */
-.stepper__item.is-done .stepper__dot {
-    background: linear-gradient(180deg, rgba(31,140,255,0.18), rgba(143,195,255,0.18));
-    border-color: rgba(31,140,255,0.75);
-}
-
-/* ===== NEW: Inline pill replaces the active number ===== */
-.stepper__pill {
-    height: 28px;                         /* match dot height */
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: .2px;
-    color: var(--sb-text, #dfe6ee);
-    background: linear-gradient(180deg, rgba(31,140,255,0.28), rgba(143,195,255,0.28));
-    border: 2px solid rgba(31,140,255,1);
-    box-shadow: 0 0 0 5px rgba(31,140,255,0.16);
-    animation: pillFade .18s ease-out;
-}
-@keyframes pillFade {
-    from { opacity: 0; transform: translateY(-4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    justify-content: center;
+    position: relative;
 }
 
-/* Connector */
+/* Dots (inactive steps) */
+.stepper__dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;   /* bigger dot */
+    height: 1.8rem;
+    border-radius: 50%;
+    border: 1px solid var(--stepper-dot-border);
+    background: var(--stepper-dot-bg);
+    color: var(--stepper-dot-text);
+    font-weight: 600;
+    font-size: 0.9rem; /* bigger number */
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+/* Number inside dot */
+.stepper__num {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Active pill */
+.stepper__pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    box-shadow: var(--stepper-shadow-lg);
+
+    /* Gradient text */
+    background: linear-gradient(90deg, #f472b6, #60a5fa, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-fill-color: transparent;
+}
+
+/* Completed step */
+.stepper__item.is-done .stepper__dot {
+    background: var(--stepper-done-bg);
+    color: var(--stepper-done-text);
+    border: none;
+}
+
+/* Connectors */
 .stepper__connector {
-    flex: 1 1 90px;
-    height: 2px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.22);
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02);
-    transition: background .35s cubic-bezier(.22,.61,.36,1), box-shadow .35s;
-}
-.stepper__connector.is-done {
-    background: linear-gradient(90deg, var(--sb-active, #1f8cff), #8fc3ff);
-    box-shadow: 0 0 10px rgba(31,140,255,0.25);
+    flex: 1;
+    height: 1px;
+    background: var(--stepper-connector);
+    margin: 0 0.75rem;
+    min-width: 4rem; /* spread steps wider */
+    border-radius: 1px;
 }
 
-/* Light theme tweaks */
-body.theme-light .stepper__dot { color: #1a1f2e; }
-body.theme-light .stepper__connector { background: rgba(0,0,0,0.12); }
-body.theme-light .stepper__pill {
-    background: rgba(255,255,255,0.75);
-    color: #1a1f2e;
-    border-color: rgba(31,140,255,0.9);
+.stepper__connector.is-done {
+    background: var(--stepper-connector-done);
+    height: 2px;
+}
+
+/* Status text */
+.stepper__status {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--stepper-text-muted);
+    text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stepper-wrap {
+        padding: 0.5rem 0.75rem;
+    }
+    .stepper__connector {
+        min-width: 2rem;
+        margin: 0 0.5rem;
+    }
+    .stepper__dot {
+        width: 1.6rem;
+        height: 1.6rem;
+        font-size: 0.8rem;
+    }
+    .stepper__num {
+        font-size: 0.85rem;
+    }
+    .stepper__pill {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .stepper__list {
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding: 0 0.5rem;
+        scrollbar-width: none;
+    }
+    .stepper__list::-webkit-scrollbar {
+        display: none;
+    }
+    .stepper__connector {
+        min-width: 1.5rem;
+        margin: 0 0.25rem;
+    }
+    .stepper__dot {
+        width: 1.5rem;
+        height: 1.5rem;
+        font-size: 0.75rem;
+    }
+    .stepper__num {
+        font-size: 0.8rem;
+    }
 }

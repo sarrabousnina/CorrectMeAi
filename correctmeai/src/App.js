@@ -16,14 +16,10 @@ import Result from "./Pages/Result/Result";
 import Grades from "./Pages/Grades/Grades";
 import ListExams from "./Pages/ListExams/ListExams";
 import MainLayout from "./MainLayout";
-import DarkLight from "./Components/DarkLight/DarkLight";
 
 function App() {
     return (
         <Router>
-            {/* Always available (top-right) */}
-            <DarkLight />
-
             <Routes>
                 {/* Public routes (no token needed) */}
                 <Route path="/login" element={<Login />} />

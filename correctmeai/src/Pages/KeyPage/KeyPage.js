@@ -217,8 +217,6 @@ const KeyPage = () => {
 
     return (
         <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
-            <h2>🧠 Correction Key Entry</h2>
-
             {successMsg && (
                 <div
                     style={{
@@ -330,7 +328,7 @@ const KeyPage = () => {
                             padding: 20,
                         }}
                     >
-                        <h3 style={{ marginBottom: 12 }}>📘 Save exam</h3>
+                        <h3 style={{ marginBottom: 12 }}>Save exam</h3>
                         <label style={{ fontWeight: 600, display: "block", marginBottom: 6 }}>
                             Exam title <span style={{ color: "#a52828" }}>*</span>
                         </label>

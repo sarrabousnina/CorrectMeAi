@@ -1,3 +1,4 @@
+// src/Components/SideBar/SideBar.jsx
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import "./SideBar.css";
@@ -5,14 +6,31 @@ import "./SideBar.css";
 export default function Sidebar() {
     const nav = useNavigate();
 
-    // Sidebar state (self‑managed)
+    // ---- THEME (moved inside sidebar)
+    const getInitialTheme = () => {
+        const saved = localStorage.getItem("theme");
+        if (saved === "dark" || saved === "light") return saved;
+        return window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+    };
+    const [theme, setTheme] = useState(getInitialTheme);
+
+    useEffect(() => {
+        const body = document.body;
+        body.classList.remove("theme-dark", "theme-light");
+        body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
+        localStorage.setItem("theme", theme);
+    }, [theme]);
+
+    // ---- SIDEBAR STATE (self‑managed)
     const [collapsed, setCollapsed] = useState(true);   // default closed (desktop)
     const [mobileOpen, setMobileOpen] = useState(false); // default closed (mobile)
 
     // Keep page content shifted with the sidebar (desktop & mobile)
     useEffect(() => {
         const body = document.body;
-
         const apply = () => {
             const isMobile = window.innerWidth < 900;
 
@@ -35,21 +53,22 @@ export default function Sidebar() {
         return () => window.removeEventListener("resize", apply);
     }, [collapsed, mobileOpen]);
 
-    // ---- LOGOUT HANDLER ----
+    // ---- LOGOUT
     function handleLogout() {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         nav("/login", { replace: true });
     }
 
-    // Click handler for the burger button
+    // ---- Handlers
     const handleToggle = () => {
         if (window.innerWidth < 900) {
-            setMobileOpen(false); // close on mobile
+            setMobileOpen(false);
         } else {
-            setCollapsed((c) => !c); // toggle on desktop
+            setCollapsed((c) => !c);
         }
     };
+    const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
     return (
         <aside
@@ -70,7 +89,6 @@ export default function Sidebar() {
                 </button>
 
                 <div className="sb__brand">CorrectMe</div>
-                {/* (Theme toggle removed; now global in DarkLight) */}
             </div>
 
             <nav className="sb__nav">
@@ -90,7 +108,22 @@ export default function Sidebar() {
                 </NavLink>
             </nav>
 
+            {/* FOOTER: Theme + Logout */}
             <div className="sb__bottom">
+                <button
+                    className="sb__link sb__themeLink"
+                    onClick={toggleTheme}
+                    aria-label="Toggle dark/light"
+                    title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+          <span className="sb__icon" aria-hidden="true">
+            {theme === "dark" ? "☀️" : "🌙"}
+          </span>
+                    <span className="sb__label">
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </span>
+                </button>
+
                 <button className="sb__link sb__logout" onClick={handleLogout}>
                     <span className="sb__icon">🚪</span>
                     <span className="sb__label">Logout</span>

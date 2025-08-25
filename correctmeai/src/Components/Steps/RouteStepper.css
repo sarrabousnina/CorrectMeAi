@@ -1,0 +1,96 @@
+/* Sticky inside the page, a bit lower from the very top */
+.stepper-sticky {
+    position: sticky;
+    top: 24px;               /* ⬅️ moved down */
+    z-index: 5;
+    margin: 0 16px 10px 16px;
+}
+
+/* Transparent container */
+.stepper-wrap { position: relative; background: transparent; padding: 0; border: 0; }
+
+/* Row centers connectors with dots/pill */
+.stepper__list {
+    display: flex;
+    align-items: center;     /* centers connector vertically with dot/pill */
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.stepper__item {
+    display: grid;
+    place-items: center;
+    min-width: 42px;
+}
+
+/* Numbered dot (unchanged) */
+.stepper__dot {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: transparent;
+    border: 2px solid rgba(31,140,255,0.45);
+    color: var(--sb-text, #dfe6ee);
+    transition: transform .18s cubic-bezier(.22,.61,.36,1), border-color .25s, background .25s, box-shadow .25s;
+}
+.stepper__item.is-clickable .stepper__dot { cursor: pointer; }
+.stepper__item.is-clickable .stepper__dot:hover {
+    transform: translateY(-1px) scale(1.06);
+    box-shadow: 0 6px 18px rgba(31,140,255,0.22);
+}
+.stepper__num { font-size: 12px; font-weight: 800; line-height: 1; }
+
+/* Done/active states for dots */
+.stepper__item.is-done .stepper__dot {
+    background: linear-gradient(180deg, rgba(31,140,255,0.18), rgba(143,195,255,0.18));
+    border-color: rgba(31,140,255,0.75);
+}
+
+/* ===== NEW: Inline pill replaces the active number ===== */
+.stepper__pill {
+    height: 28px;                         /* match dot height */
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: var(--sb-text, #dfe6ee);
+    background: linear-gradient(180deg, rgba(31,140,255,0.28), rgba(143,195,255,0.28));
+    border: 2px solid rgba(31,140,255,1);
+    box-shadow: 0 0 0 5px rgba(31,140,255,0.16);
+    animation: pillFade .18s ease-out;
+}
+@keyframes pillFade {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Connector */
+.stepper__connector {
+    flex: 1 1 90px;
+    height: 2px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.22);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02);
+    transition: background .35s cubic-bezier(.22,.61,.36,1), box-shadow .35s;
+}
+.stepper__connector.is-done {
+    background: linear-gradient(90deg, var(--sb-active, #1f8cff), #8fc3ff);
+    box-shadow: 0 0 10px rgba(31,140,255,0.25);
+}
+
+/* Light theme tweaks */
+body.theme-light .stepper__dot { color: #1a1f2e; }
+body.theme-light .stepper__connector { background: rgba(0,0,0,0.12); }
+body.theme-light .stepper__pill {
+    background: rgba(255,255,255,0.75);
+    color: #1a1f2e;
+    border-color: rgba(31,140,255,0.9);
+}

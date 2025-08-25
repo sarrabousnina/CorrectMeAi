@@ -180,3 +180,29 @@ body.sb-collapsed { --content-ml: var(--sb-mini); }
 @media (prefers-reduced-motion: reduce) {
     .sb, .sb__link, .sb__brand, .sb__label { transition: none !important; }
 }
+
+/* Footer container */
+.sb__bottom {
+    margin-top: auto;
+    padding: 12px 10px;
+    display: grid;
+    gap: 8px;
+}
+
+/* subtle divider above footer */
+.sb__bottom::before {
+    content: "";
+    height: 1px;
+    margin: 0 2px 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+}
+
+/* Theme link = same tile style as nav links */
+.sb__themeLink:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.18);
+}
+
+/* When collapsed, labels already hide via your existing rule:
+   .sb.sb--collapsed .sb__label { opacity: 0; visibility: hidden; } */

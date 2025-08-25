@@ -93,7 +93,7 @@ export default function Result() {
     const examId = data?.exam_id || exam?._id;
 
     return (
-        <div className="page bg">
+        <div className="page">
             <div className="container">
                 <div className="card">
                     {/* Header */}
@@ -104,12 +104,6 @@ export default function Result() {
                                 <div>
                                     Student:{" "}
                                     <span className="meta__value">{data.student_id || "—"}</span>
-                                </div>
-                                <div className="truncate">
-                                    Submission ID:{" "}
-                                    <span className="meta__mono">
-                    {data._id || submissionId || "latest"}
-                  </span>
                                 </div>
                             </div>
                         </div>

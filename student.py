@@ -93,6 +93,15 @@ def normalize_answer_keep_articles(v):
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
+def _clean_student_name(s: str) -> str:
+    """Normalize a name string; if it’s only digits, return as-is (we will treat it as number)."""
+    s = (s or "").strip()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"^[\W_]+|[\W_]+$", "", s)
+    if s and not re.fullmatch(r"\d+", s):
+        s = s.title()
+    return s
+
 # ================================
 # Routes
 # ================================
@@ -106,11 +115,12 @@ def extract_answers():
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
     system = (
-        "You extract the student's name and answers from an exam photo.\n"
+        "You extract the student's NAME and answers from an exam photo.\n"
         "Return STRICT JSON ONLY (no prose, no code fences).\n"
         "Schema:\n"
         "{\n"
-        '  "student_id": string,\n'
+        '  "student_name": string,          // full human name exactly as on the paper\n'
+        '  "student_number": string|null,   // small numeric seat/roll number if present, else null\n'
         '  "answers_structured": { "Q1": string, "Q2": string, ... }\n'
         "}\n"
         "Rules:\n"
@@ -118,11 +128,13 @@ def extract_answers():
         "- For multiple-choice, return only the option letter a/b/c/d (lowercase).\n"
         "- Number questions sequentially Q1, Q2, ... in the order they appear.\n"
         "- Use empty string if a question is blank/unclear.\n"
+        "- IMPORTANT: 'student_name' must be the person's name (e.g., 'Sarra Boumika'), "
+        "not the numeric seat number like '13'. Put that numeric value into 'student_number'.\n"
     )
 
     user_content = [
-        {"type": "text", "text": "Extract student_id and answers_structured from this exam image."},
-        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+        {"type": "text", "text": "Extract student_name, student_number and answers_structured from this exam image."},
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}" }},
     ]
 
     payload = {
@@ -149,12 +161,26 @@ def extract_answers():
         raw_json = _extract_first_json(raw)
         data = json.loads(raw_json)
 
-        student_id = (data.get("student_id") or data.get("student_name") or "Unknown Student").strip()
+        # Prefer proper name; keep number separately
+        name_from_model = _clean_student_name(
+            data.get("student_name") or data.get("student_id") or data.get("name") or data.get("student") or ""
+        )
+        number_from_model = (data.get("student_number") or "").strip()
+
+        # If the 'name' the model returned is actually just digits, treat it as the number and try to find a real name
+        if not name_from_model or re.fullmatch(r"\d+", name_from_model):
+            if not number_from_model:
+                number_from_model = (data.get("student_id") or "").strip()
+            name_from_model = "Unknown Student"
+
         answers_raw = data.get("answers_structured") or data.get("answers") or {}
         answers_structured = _normalize_answers_structured(answers_raw)
 
+        # Back-compat: return 'student_id' as the NAME
         return jsonify({
-            "student_id": student_id,
+            "student_id": name_from_model,         # legacy field – now the NAME
+            "student_name": name_from_model,       # explicit
+            "student_number": number_from_model or None,
             "answers_structured": answers_structured
         }), 200
 
@@ -185,9 +211,12 @@ def submit_student():
     user = _user_or_none()  # instructor/admin
     data = request.json or {}
 
-    # Validate required fields we can validate now
-    if not data.get("student_id") or not data.get("answers_structured"):
-        return jsonify({"error": "Missing student_id or answers_structured"}), 400
+    # Accept either student_id (legacy) or student_name (new)
+    student_name = (data.get("student_name") or data.get("student_id") or "").strip()
+    answers_in = data.get("answers_structured")
+
+    if not student_name or not answers_in:
+        return jsonify({"error": "Missing student name or answers_structured"}), 400
 
     # Resolve exam to attach to
     exam_id = (data.get("exam_id") or "").strip()
@@ -216,10 +245,12 @@ def submit_student():
             return jsonify({"error": "No exams found for this user"}), 404
 
     # Normalize answers and insert submission
-    answers_structured = _normalize_answers_structured(data.get("answers_structured"))
+    answers_structured = _normalize_answers_structured(answers_in)
 
     ins = submissions_collection.insert_one({
-        "student_id": data["student_id"],
+        "student_id": student_name,                          # keep field name for compatibility (now stores NAME)
+        "student_name": student_name,                        # explicit
+        "student_number": (data.get("student_number") or "").strip() or None,
         "exam_id": exam_doc["_id"],
         "answers_structured": answers_structured,
         "score": None,

@@ -10,21 +10,45 @@
     --radius-lg: 16px;
 }
 
-.page.bg { background: linear-gradient(180deg, var(--soft), #fff 60%, var(--soft)); min-height: 100vh; }
+/* Use the app's global gradient; make page fill the viewport */
+.page.bg {
+    background: transparent;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.container { max-width: 1120px; margin: 0 auto; padding: 2rem 1.25rem; flex: 1; }
 .page.pad { padding: 2rem; }
-.container { max-width: 1120px; margin: 0 auto; padding: 2rem 1.25rem; }
 
 .text-muted { color: var(--muted); }
 .text-error { color: #dc2626; }
 
+/* ---------------- Card (stretched) ---------------- */
 .card{
+    /* glass + border */
     background: var(--card);
     border: 1px solid color-mix(in oklab, var(--line), transparent 10%);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow);
-    overflow: hidden;
+
+    /* layout: make inner content grow so the card stays tall */
+    display: flex;
+    flex-direction: column;
+
+    /* >>> make the big card longer by default <<< */
+    /* accounts for stepper + top spacing; tweak if needed */
+    min-height: calc(100vh - 220px);
+
+    /* ghost-artifact fixes for Chrome/WebKit when using blur + radius */
+    overflow: hidden; /* clip inside rounded corners */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    -webkit-mask-repeat: no-repeat;
+    background-clip: padding-box;
 }
 
+/* header */
 .title{ margin:0; color:var(--text); font-weight:700; font-size: clamp(1.4rem, 1.2rem + 1vw, 2rem); letter-spacing:-.02em; }
 .meta{ margin-top:.4rem; display:grid; gap:.35rem; color:var(--muted); font-size:.95rem; }
 .meta__mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--text); }
@@ -33,7 +57,6 @@
 .stats span{ color:var(--muted); }
 .stats strong{ color:var(--text); }
 
-/* header layout */
 .grades__header{
     display:flex; gap:1rem; padding:1.25rem 1.5rem;
     border-bottom:1px solid var(--line);
@@ -64,8 +87,12 @@
 .btn:hover{ filter:brightness(.98); }
 .btn:active{ transform: translateY(1px); }
 
-/* table */
-.table-wrap{ overflow-x:auto; }
+/* ---------------- Table (fills remaining height) ---------------- */
+.table-wrap{
+    flex: 1;                 /* let table area grow to fill the card */
+    overflow-x: auto;
+    display: block;
+}
 .table{ width:100%; border-collapse:separate; border-spacing:0; font-size:.95rem; min-width: 960px; }
 .table thead th{
     background: var(--soft); color:#334155; text-align:left; font-weight:600;
@@ -105,11 +132,14 @@
     .table{ min-width: 760px; }
     .grades__header{ align-items: flex-start; flex-direction: column; }
     .grades th:nth-child(5), .grades td:nth-child(5){ width: auto; min-width: 280px; }
+
+    /* on short viewports, let height relax so it doesn't over-constrain */
+    .card{ min-height: calc(100vh - 180px); }
 }
 
 /* print */
 @media print{
     body{ background:#fff !important; }
     .btn, .seg, .input, .actions, .no-print{ display:none !important; }
-    .card{ box-shadow:none; border:0; }
+    .card{ box-shadow:none; border:0; min-height:auto; }
 }

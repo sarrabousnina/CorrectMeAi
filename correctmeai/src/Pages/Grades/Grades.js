@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./Grades.css";
-import { SUB_API, authedFetch } from "../../JWT/api"; // <<— use corrector base
+import { SUB_API, authedFetch } from "../../JWT/api";
 
 export default function Grades() {
     const { examId: examIdFromRoute } = useParams();
@@ -17,13 +17,11 @@ export default function Grades() {
 
     useEffect(() => {
         let alive = true;
-
         async function run() {
             try {
                 setLoading(true);
                 setErr("");
 
-                // Submissions endpoints live on the corrector server (:5005)
                 const url = examIdFromRoute
                     ? `${SUB_API}/exams/${encodeURIComponent(examIdFromRoute)}/submissions`
                     : `${SUB_API}/exams/latest/submissions`;
@@ -54,7 +52,6 @@ export default function Grades() {
                 if (alive) setLoading(false);
             }
         }
-
         run();
         return () => {
             alive = false;
@@ -138,29 +135,25 @@ export default function Grades() {
         const ids = filtered.map((r) => r.id).filter(Boolean);
         for (const id of ids) {
             try {
-                // regrade endpoint is on the corrector server
                 await authedFetch(`${SUB_API}/submissions/${id}/regrade`, { method: "POST" });
             } catch {
-                /* ignore individual failures */
+                /* ignore */
             }
         }
     }
 
     return (
-        <div className="page bg">
+        <div className="page">
             <div className="container">
-                <div className="card">
+                {/* Make the card fill the viewport height nicely */}
+                <div className="card card--fill">
                     <div className="grades__header">
                         <div className="grades__left">
                             <h1 className="title">{exam?.title || "Exam Grades"}</h1>
-                            <div className="meta">
-                                {exam?.["_id"] && (
-                                    <div>
-                                        Exam ID: <span className="meta__mono">{exam._id}</span>
-                                    </div>
-                                )}
+
+                            <div className="stats">
                                 {stats && (
-                                    <div className="stats">
+                                    <>
                                         <span>{stats.count} submissions</span>
                                         <span>
                       Average <strong>{stats.avg.toFixed(2)}</strong> (/20)
@@ -170,7 +163,7 @@ export default function Grades() {
                     </span>
                                         <span>Best {stats.best.toFixed(2)}</span>
                                         <span>Worst {stats.worst.toFixed(2)}</span>
-                                    </div>
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -232,8 +225,8 @@ export default function Grades() {
                         </div>
                     </div>
 
-                    {loading && <div className="pad text-muted">Loading…</div>}
-                    {err && <div className="pad text-error">Error: {err}</div>}
+                    {loading && <div className="pad text-muted" style={{ padding: "1rem" }}>Loading…</div>}
+                    {err && <div className="pad text-error" style={{ padding: "1rem" }}>Error: {err}</div>}
 
                     {!loading && !err && (
                         <div className="table-wrap">
@@ -253,7 +246,9 @@ export default function Grades() {
                                     <tr
                                         key={r.id}
                                         className="rowlink"
-                                        onClick={() => navigate(`/result/${r.id}?student=${encodeURIComponent(r.student)}`)}
+                                        onClick={() =>
+                                            navigate(`/result/${r.id}?student=${encodeURIComponent(r.student)}`)
+                                        }
                                         title="Open detailed result"
                                     >
                                         <td className="strong">{r.student}</td>
@@ -270,7 +265,7 @@ export default function Grades() {
                                 ))}
                                 {!filtered.length && (
                                     <tr>
-                                        <td colSpan={6} className="muted center pad">
+                                        <td colSpan={6} className="muted center pad" style={{ padding: "1rem" }}>
                                             No submissions yet.
                                         </td>
                                     </tr>

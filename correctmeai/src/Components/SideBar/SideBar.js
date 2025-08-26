@@ -112,6 +112,11 @@ export default function Sidebar() {
                     <span className="sb__label">Dashboard</span>
                 </NavLink>
 
+                <NavLink to="/ExamGenerator" className="sb__link">
+                    <span className="sb__icon">📊</span>
+                    <span className="sb__label">Dashboard</span>
+                </NavLink>
+
             </nav>
 
             {/* FOOTER: Theme + Logout */}

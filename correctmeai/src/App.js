@@ -17,6 +17,7 @@ import Grades from "./Pages/Grades/Grades";
 import ListExams from "./Pages/ListExams/ListExams";
 import Dashboard from "./Pages/Dashboard/Dashboard";   // ⬅️ NEW
 import MainLayout from "./MainLayout";
+import ExamGenerator from "./Pages/ExamGenerator/ExamGenerator";
 
 function App() {
     return (
@@ -38,6 +39,7 @@ function App() {
                     <Route path="/result/:submissionId" element={<RequireAuth><Result /></RequireAuth>} />
                     <Route path="/exam/:examId/grades" element={<RequireAuth><Grades /></RequireAuth>} />
                     <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+                    <Route path="/ExamGenerator" element={<RequireAuth><ExamGenerator /></RequireAuth>} />
                 </Route>
             </Routes>
         </Router>

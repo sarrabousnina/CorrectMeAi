@@ -15,6 +15,7 @@ import Correction from "./Pages/Correction/Correction";
 import Result from "./Pages/Result/Result";
 import Grades from "./Pages/Grades/Grades";
 import ListExams from "./Pages/ListExams/ListExams";
+import Dashboard from "./Pages/Dashboard/Dashboard";   // ⬅️ NEW
 import MainLayout from "./MainLayout";
 
 function App() {
@@ -27,78 +28,16 @@ function App() {
 
                 {/* Protected area (everything below requires a valid token) */}
                 <Route element={<MainLayout />}>
-                    <Route
-                        index
-                        element={
-                            <RequireAuth>
-                                <UploadExam />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/ListExams"
-                        element={
-                            <RequireAuth>
-                                <ListExams />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/grades"
-                        element={
-                            <RequireAuth>
-                                <Grades />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/Key"
-                        element={
-                            <RequireAuth>
-                                <KeyPage />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/Student"
-                        element={
-                            <RequireAuth>
-                                <UploadStudent />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/Correction"
-                        element={
-                            <RequireAuth>
-                                <Correction />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/result"
-                        element={
-                            <RequireAuth>
-                                <Result />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/result/:submissionId"
-                        element={
-                            <RequireAuth>
-                                <Result />
-                            </RequireAuth>
-                        }
-                    />
-                    <Route
-                        path="/exam/:examId/grades"
-                        element={
-                            <RequireAuth>
-                                <Grades />
-                            </RequireAuth>
-                        }
-                    />
+                    <Route index element={<RequireAuth><UploadExam /></RequireAuth>} />
+                    <Route path="/ListExams" element={<RequireAuth><ListExams /></RequireAuth>} />
+                    <Route path="/grades" element={<RequireAuth><Grades /></RequireAuth>} />
+                    <Route path="/Key" element={<RequireAuth><KeyPage /></RequireAuth>} />
+                    <Route path="/Student" element={<RequireAuth><UploadStudent /></RequireAuth>} />
+                    <Route path="/Correction" element={<RequireAuth><Correction /></RequireAuth>} />
+                    <Route path="/result" element={<RequireAuth><Result /></RequireAuth>} />
+                    <Route path="/result/:submissionId" element={<RequireAuth><Result /></RequireAuth>} />
+                    <Route path="/exam/:examId/grades" element={<RequireAuth><Grades /></RequireAuth>} />
+                    <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
                 </Route>
             </Routes>
         </Router>

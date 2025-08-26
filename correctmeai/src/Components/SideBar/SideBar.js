@@ -106,6 +106,12 @@ export default function Sidebar() {
                     <span className="sb__icon">🎓</span>
                     <span className="sb__label">Grades</span>
                 </NavLink>
+
+                <NavLink to="/dashboard" className="sb__link">
+                    <span className="sb__icon">📊</span>
+                    <span className="sb__label">Dashboard</span>
+                </NavLink>
+
             </nav>
 
             {/* FOOTER: Theme + Logout */}

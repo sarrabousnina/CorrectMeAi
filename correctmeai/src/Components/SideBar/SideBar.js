@@ -1,12 +1,19 @@
-// src/Components/SideBar/SideBar.jsx
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import "./SideBar.css";
 
+/* === ICON IMAGES (from src/Images) === */
+import homeIcon from "../../Images/maison.png";
+import examsIcon from "../../Images/examen.png";
+import gradesIcon from "../../Images/notes-des-etudiants.png";
+import dashboardIcon from "../../Images/lanalyse-des-donnees.png";
+import generatorIcon from "../../Images/assistant-intelligent.png";
+import logoutIcon from "../../Images/se-deconnecter.png";
+
 export default function Sidebar() {
     const nav = useNavigate();
 
-    // ---- THEME (moved inside sidebar)
+    /* ---------- THEME ---------- */
     const getInitialTheme = () => {
         const saved = localStorage.getItem("theme");
         if (saved === "dark" || saved === "light") return saved;
@@ -24,11 +31,10 @@ export default function Sidebar() {
         localStorage.setItem("theme", theme);
     }, [theme]);
 
-    // ---- SIDEBAR STATE (self‑managed)
-    const [collapsed, setCollapsed] = useState(true);   // default closed (desktop)
+    /* ---------- SIDEBAR STATE ---------- */
+    const [collapsed, setCollapsed] = useState(true); // default closed (desktop)
     const [mobileOpen, setMobileOpen] = useState(false); // default closed (mobile)
 
-    // Keep page content shifted with the sidebar (desktop & mobile)
     useEffect(() => {
         const body = document.body;
         const apply = () => {
@@ -53,14 +59,13 @@ export default function Sidebar() {
         return () => window.removeEventListener("resize", apply);
     }, [collapsed, mobileOpen]);
 
-    // ---- LOGOUT
+    /* ---------- ACTIONS ---------- */
     function handleLogout() {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         nav("/login", { replace: true });
     }
 
-    // ---- Handlers
     const handleToggle = () => {
         if (window.innerWidth < 900) {
             setMobileOpen(false);
@@ -68,8 +73,10 @@ export default function Sidebar() {
             setCollapsed((c) => !c);
         }
     };
+
     const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
+    /* ---------- RENDER ---------- */
     return (
         <aside
             className={[
@@ -93,30 +100,74 @@ export default function Sidebar() {
 
             <nav className="sb__nav">
                 <NavLink end to="/" className="sb__link">
-                    <span className="sb__icon">🏠</span>
+          <span className="sb__icon">
+            <img
+                src={homeIcon}
+                alt="Home"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
                     <span className="sb__label">Home</span>
                 </NavLink>
 
                 <NavLink to="/ListExams" className="sb__link">
-                    <span className="sb__icon">📚</span>
+          <span className="sb__icon">
+            <img
+                src={examsIcon}
+                alt="Exams"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
                     <span className="sb__label">List Exams</span>
                 </NavLink>
 
                 <NavLink to="/grades" className="sb__link">
-                    <span className="sb__icon">🎓</span>
+          <span className="sb__icon">
+            <img
+                src={gradesIcon}
+                alt="Grades"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
                     <span className="sb__label">Grades</span>
                 </NavLink>
 
                 <NavLink to="/dashboard" className="sb__link">
-                    <span className="sb__icon">📊</span>
+          <span className="sb__icon">
+            <img
+                src={dashboardIcon}
+                alt="Dashboard"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
                     <span className="sb__label">Dashboard</span>
                 </NavLink>
 
                 <NavLink to="/ExamGenerator" className="sb__link">
-                    <span className="sb__icon">📊</span>
-                    <span className="sb__label">Dashboard</span>
+          <span className="sb__icon">
+            <img
+                src={generatorIcon}
+                alt="Exam generator"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
+                    <span className="sb__label">Exam Generator</span>
                 </NavLink>
-
             </nav>
 
             {/* FOOTER: Theme + Logout */}
@@ -136,7 +187,16 @@ export default function Sidebar() {
                 </button>
 
                 <button className="sb__link sb__logout" onClick={handleLogout}>
-                    <span className="sb__icon">🚪</span>
+          <span className="sb__icon">
+            <img
+                src={logoutIcon}
+                alt="Logout"
+                className="sb__icon-img"
+                width={22}
+                height={22}
+                loading="lazy"
+            />
+          </span>
                     <span className="sb__label">Logout</span>
                 </button>
             </div>

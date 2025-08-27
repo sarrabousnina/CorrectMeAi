@@ -1,6 +1,6 @@
 // src/pages/HomePage/HomePage.js
 import React, { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom"; // ⬅️ NEW
+import { Link, useNavigate } from "react-router-dom";
 import "./HomePage.css";
 
 /**
@@ -132,10 +132,11 @@ export default function HomePage() {
             {/* Header */}
             <header>
                 <nav>
-                    <div className="logo">
-                        <span className="logo-mark" aria-hidden="true" />
-                        <span className="logo-text">CorrectMeAi</span>
+                 <div className="logo">
+                     <img src="/logo.png" alt="CorrectMeAi Logo" className="nav-logo"/>
+                     <span className="logo-text">CorrectMeAi</span>
                     </div>
+
                     <ul className="nav-links">
                         <li><a href="#features">Features</a></li>
                         <li><a href="#pricing">Pricing</a></li>
@@ -164,12 +165,6 @@ export default function HomePage() {
                             answers, and grade against your rubric. Get instant, explainable feedback and
                             per-question analytics.
                         </p>
-                        <div className="hero-buttons">
-                            <Link to="/login" className="btn-primary">
-                                <i className="fas fa-play" /> See Live Demo
-                            </Link>
-                            <Link to="/login" className="btn-secondary">Open Web App</Link>
-                        </div>
                     </div>
                 </div>
             </section>

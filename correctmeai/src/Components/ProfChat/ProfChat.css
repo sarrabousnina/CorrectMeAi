@@ -1,0 +1,45 @@
+.pc-shell {
+    display: flex; flex-direction: column;
+    height: 100vh; background: #f6f7fb;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+.pc-header {
+    padding: 14px 18px; font-weight: 700; color: #fff;
+    background: linear-gradient(90deg, #4f46e5, #9333ea);
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+}
+
+.pc-messages {
+    flex: 1; overflow-y: auto; padding: 16px; gap: 8px; display: flex; flex-direction: column;
+}
+
+.pc-row { display: flex; margin: 6px 0; }
+.pc-left { justify-content: flex-start; }
+.pc-right { justify-content: flex-end; }
+
+.pc-bubble {
+    max-width: 75%; padding: 10px 14px; border-radius: 16px;
+    white-space: pre-wrap; box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+
+.pc-assistant { background: #fff; border: 1px solid #e5e7eb; color: #111827; }
+.pc-user { background: #4f46e5; color: #fff; }
+
+.pc-inputbar {
+    display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e5e7eb; background: #fff;
+}
+.pc-input {
+    flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 12px;
+    outline: none;
+}
+.pc-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.2); }
+
+.pc-send {
+    padding: 10px 16px; border-radius: 12px; border: 0; background: #4f46e5; color: #fff; font-weight: 600;
+    cursor: pointer;
+}
+.pc-send:disabled { opacity: .6; cursor: not-allowed; }
+
+.pc-cursor { margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }

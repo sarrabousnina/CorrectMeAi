@@ -7,6 +7,8 @@ from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pymongo import MongoClient, DESCENDING
 from datetime import timedelta
+from ai_assistant import bp_ai
+
 
 
 import config
@@ -28,15 +30,19 @@ exams.create_index("created_by")
 # ---------- APP / CORS ----------
 app = Flask(__name__)
 
+app.register_blueprint(bp_ai, url_prefix="/ai")   # ✅ add this
+
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 CORS(
     app,
     resources={
         r"/api/*": {"origins": [FRONTEND_ORIGIN]},
         r"/ListExams": {"origins": [FRONTEND_ORIGIN]},
+        r"/ai/*": {"origins": [FRONTEND_ORIGIN]},   # ⬅ add this line
     },
-    supports_credentials=True,   
+    supports_credentials=True,
 )
+
 
 @app.after_request
 def _add_cors_headers(resp):
@@ -304,6 +310,9 @@ def api_dashboard_summary():
         "timeSaved":            time_saved,
         "topStudents":          top_students,
     }), 200
+@app.route("/ai/<path:_any>", methods=["OPTIONS"])
+def _preflight_ai(_any=None):
+    return ("", 200)
 
 
 if __name__ == "__main__":

@@ -22,18 +22,22 @@ import Dashboard from "./Pages/Dashboard/Dashboard";
 import ExamGenerator from "./Pages/ExamGenerator/ExamGenerator";
 import MainLayout from "./MainLayout";
 
+// 🔹 NEW: import the chat page
+// src/App.js
+import ProfChat from "./Components/ProfChat/ProfChat";
+
 function App() {
     return (
         <Router>
             <Routes>
-                {/* Public marketing (separate path so / stays app) */}
+                {/* Public marketing */}
                 <Route path="/welcome" element={<HomePage />} />
 
                 {/* Public auth */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
 
-                {/* Protected area (default / goes to UploadExam like before) */}
+                {/* Protected area */}
                 <Route element={<MainLayout />}>
                     <Route
                         index
@@ -120,6 +124,15 @@ function App() {
                         element={
                             <RequireAuth>
                                 <ExamGenerator />
+                            </RequireAuth>
+                        }
+                    />
+                    {/* 🔹 NEW Assistant route */}
+                    <Route
+                        path="/assistant"
+                        element={
+                            <RequireAuth>
+                                <ProfChat />
                             </RequireAuth>
                         }
                     />

@@ -1,18 +1,31 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./ProfChat.css";
+import robotIcon from "../../Images/robot.png"; // <-- your robot image
 
 const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:5006";
 
-export default function ProfChat({ sessionId = "prof-session-1" }) {
+export default function ProfChat({ sessionId = "prof-global" }) {
+    const [open, setOpen] = useState(false);
+
+    // Chat state
     const [messages, setMessages] = useState([
-        { role: "assistant", text: "👋 Bonjour Prof ! Posez-moi vos questions (générer des questions, résumer un examen, etc.)." }
+        { role: "assistant", text: "👋 Hi! I'm ProfMate, your assistant for exams and courses. Ask me anything!" }
     ]);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
     const endRef = useRef(null);
 
-    const scrollDown = () => endRef.current?.scrollIntoView({ behavior: "smooth" });
-    useEffect(scrollDown, [messages]);
+    // Auto-scroll to latest message
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    // Close modal on ESC
+    useEffect(() => {
+        const onKey = (e) => e.key === "Escape" && setOpen(false);
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
 
     const send = async (text) => {
         if (!text.trim() || busy) return;
@@ -21,13 +34,12 @@ export default function ProfChat({ sessionId = "prof-session-1" }) {
         setBusy(true);
 
         const res = await fetch(`${API_BASE}/ai/chat`, {
-            method: "POST",   // ⬅ very important
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: text, session_id: sessionId }),
         });
 
-
-        // Prepare an empty assistant message for streaming
+        // Prepare an empty assistant bubble for streaming
         setMessages((m) => [...m, { role: "assistant", text: "", streaming: true }]);
 
         const reader = res.body.getReader();
@@ -70,31 +82,63 @@ export default function ProfChat({ sessionId = "prof-session-1" }) {
         if (text) send(text);
     };
 
-    return (
-        <div className="pc-shell">
-            <header className="pc-header">Professor AI Assistant</header>
-
-            <main className="pc-messages">
+    // Chat UI inside the modal
+    const ChatShell = (
+        <div className="pcb-shell">
+            <main className="pcb-messages">
                 {messages.map((m, i) => (
-                    <div key={i} className={`pc-row ${m.role === "user" ? "pc-right" : "pc-left"}`}>
-                        <div className={`pc-bubble ${m.role === "user" ? "pc-user" : "pc-assistant"}`}>
+                    <div key={i} className={`pcb-row ${m.role === "user" ? "pcb-right" : "pcb-left"}`}>
+                        <div className={`pcb-bubble ${m.role === "user" ? "pcb-user" : "pcb-assistant"}`}>
                             {m.text}
-                            {m.streaming && <span className="pc-cursor">▌</span>}
+                            {m.streaming && <span className="pcb-cursor">▌</span>}
                         </div>
                     </div>
                 ))}
                 <div ref={endRef} />
             </main>
-
-            <form className="pc-inputbar" onSubmit={onSubmit}>
+            <form className="pcb-inputbar" onSubmit={onSubmit}>
                 <input
-                    className="pc-input"
-                    placeholder="Écrire un message…"
+                    className="pcb-input"
+                    placeholder="Type your message..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                 />
-                <button className="pc-send" disabled={busy}>Envoyer</button>
+                <button className="pcb-send" disabled={busy}>Send</button>
             </form>
         </div>
+    );
+
+    return (
+        <>
+            {/* Floating mascot button (no background circle) */}
+            <button
+                className="pcb-fab"
+                onClick={() => setOpen(true)}
+                aria-label="Open ProfMate"
+                title="Open ProfMate"
+            >
+                <img src={robotIcon} alt="ProfMate" className="pcb-fab-img" />
+            </button>
+
+            {open && (
+                <div
+                    className="pcb-backdrop"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) setOpen(false);
+                    }}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="ProfMate"
+                >
+                    <div className="pcb-modal">
+                        <div className="pcb-modal-head">
+                            <div className="pcb-title">ProfMate</div>
+                            <button className="pcb-close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+                        </div>
+                        <div className="pcb-modal-body">{ChatShell}</div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }

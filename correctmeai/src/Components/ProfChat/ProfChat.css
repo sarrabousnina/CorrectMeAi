@@ -1,45 +1,124 @@
-.pc-shell {
+/* ========== Floating mascot button (no circle) ========== */
+.pcb-fab {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1000;
+    border: none;
+    background: none;     /* remove purple circle */
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+.pcb-fab:hover { transform: translateY(-2px) scale(1.02); }
+
+/* Robot image: bigger + floating + soft shadow */
+.pcb-fab-img {
+    width: 72px;               /* bigger */
+    height: 72px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.25));
+    animation: pcb-float 3s ease-in-out infinite;
+}
+@keyframes pcb-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-7px); }
+}
+
+/* ========== Modal/backdrop ========== */
+/* Backdrop stays full-screen */
+.pcb-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,6,23,.35);
+    backdrop-filter: blur(2px);
+    z-index: 2000;                /* above the mascot */
+}
+
+/* Robust bottom-right positioning */
+.pcb-modal {
+    --fab-size: 72px;             /* keep in sync with .pcb-fab-img size */
+    position: fixed;
+    right: calc(var(--fab-size) + 18px);   /* leave room for ProfMate */
+    bottom: calc(var(--fab-size) + 18px);
+    width: 380px; max-width: 94vw;
+    height: 72vh; max-height: 92vh;
+
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,.06);
+    box-shadow: 0 20px 60px rgba(0,0,0,.30);
+    overflow: hidden;
     display: flex; flex-direction: column;
-    height: 100vh; background: #f6f7fb;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    animation: pcb-pop .14s ease-out;
 }
 
-.pc-header {
-    padding: 14px 18px; font-weight: 700; color: #fff;
-    background: linear-gradient(90deg, #4f46e5, #9333ea);
-    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+/* Small screens: nudge closer to edges */
+@media (max-width: 520px) {
+    .pcb-modal {
+        right: 12px;
+        bottom: calc(var(--fab-size) + 12px);
+        width: 94vw;
+        height: 70vh;
+    }
 }
 
-.pc-messages {
-    flex: 1; overflow-y: auto; padding: 16px; gap: 8px; display: flex; flex-direction: column;
+/* Keep mascot below modal */
+.pcb-fab { z-index: 1500; }
+
+@keyframes pcb-pop { from { transform: translateY(8px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+
+.pcb-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px;
+    background: linear-gradient(90deg,#6366f1,#8b5cf6);
+    color: #fff; font-weight: 700;
 }
-
-.pc-row { display: flex; margin: 6px 0; }
-.pc-left { justify-content: flex-start; }
-.pc-right { justify-content: flex-end; }
-
-.pc-bubble {
-    max-width: 75%; padding: 10px 14px; border-radius: 16px;
-    white-space: pre-wrap; box-shadow: 0 2px 6px rgba(0,0,0,.06);
-}
-
-.pc-assistant { background: #fff; border: 1px solid #e5e7eb; color: #111827; }
-.pc-user { background: #4f46e5; color: #fff; }
-
-.pc-inputbar {
-    display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e5e7eb; background: #fff;
-}
-.pc-input {
-    flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 12px;
-    outline: none;
-}
-.pc-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.2); }
-
-.pc-send {
-    padding: 10px 16px; border-radius: 12px; border: 0; background: #4f46e5; color: #fff; font-weight: 600;
+.pcb-title { font-size: 14px; }
+.pcb-close {
+    border: 0; background: rgba(255,255,255,.18); color: #fff;
+    width: 28px; height: 28px; border-radius: 8px;
     cursor: pointer;
 }
-.pc-send:disabled { opacity: .6; cursor: not-allowed; }
+.pcb-modal-body { flex: 1; background: #f6f7fb; }
 
-.pc-cursor { margin-left: 2px; animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { opacity: 0; } }
+/* ========== Chat UI ========== */
+.pcb-shell { width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; }
+.pcb-header {
+    padding: 12px 14px; font-weight: 700; color: #fff;
+    background: linear-gradient(90deg,#6366f1,#8b5cf6);
+}
+.pcb-messages {
+    flex: 1; overflow-y: auto; padding: 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    background:
+            radial-gradient(800px 160px at 100% -80px, rgba(99,102,241,.10), transparent 60%),
+            radial-gradient(600px 120px at 0% -60px, rgba(34,197,94,.10), transparent 60%),
+            #f6f7fb;
+}
+.pcb-row { display: flex; }
+.pcb-left { justify-content: flex-start; }
+.pcb-right { justify-content: flex-end; }
+.pcb-bubble {
+    max-width: 78%;
+    padding: 10px 12px;
+    border-radius: 16px;
+    white-space: pre-wrap;
+    line-height: 1.45;
+    box-shadow: 0 8px 20px rgba(15,23,42,.06);
+    border: 1px solid #e5e7eb;
+}
+.pcb-assistant { background: #fff; color: #0f172a; }
+.pcb-user {
+    background: linear-gradient(135deg,#6366f1,#8b5cf6);
+    color: #fff; border: none;
+}
+.pcb-cursor { margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0 } }
+
+.pcb-inputbar { display: flex; gap: 10px; padding: 10px; border-top: 1px solid #e5e7eb; background: #fff; }
+.pcb-input { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 12px; outline: none; }
+.pcb-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
+.pcb-send { padding: 10px 14px; border-radius: 12px; border: 0; background: #6366f1; color: #fff; font-weight: 700; }
+.pcb-send:disabled { opacity: .6; cursor: not-allowed; }

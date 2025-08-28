@@ -1,5 +1,5 @@
 # auth.py
-import time, functools
+import time, functools, os
 from datetime import datetime
 from flask import Blueprint, request, jsonify, g
 from pymongo.errors import DuplicateKeyError
@@ -7,7 +7,12 @@ from flask_cors import cross_origin
 import jwt, bcrypt
 import config
 
-def _now(): return datetime.utcnow()
+# Google Identity Services
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as grequests
+
+def _now(): 
+    return datetime.utcnow()
 
 def _hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -87,6 +92,69 @@ def make_auth_blueprint(db):
             max_age=86400,
         )
 
+    # -------- Google Sign-In (login + auto-signup) --------
+    @bp.route("/api/auth/google", methods=["POST", "OPTIONS"])
+    @cross_origin(**_cors_args())
+    def login_with_google():
+        # CORS preflight
+        if request.method == "OPTIONS":
+            return ("", 204)
+
+        j = request.get_json(silent=True) or {}
+        id_tok = j.get("idToken")
+        if not id_tok:
+            return jsonify({"error": "missing idToken"}), 400
+
+        # Use env var if set, otherwise fall back to your client ID
+        GOOGLE_CLIENT_ID = os.getenv(
+            "GOOGLE_CLIENT_ID",
+            "726239267818-5db8k7sjccnur2oam8egk3k5r7carejj.apps.googleusercontent.com"
+        )
+
+        try:
+            # Verify Google ID token
+            payload = google_id_token.verify_oauth2_token(
+                id_tok, grequests.Request(), GOOGLE_CLIENT_ID
+            )
+
+            email = payload.get("email")
+            if not email or not payload.get("email_verified"):
+                return jsonify({"error": "unverified Google account"}), 401
+
+            # Find or create user in Mongo
+            u = users.find_one({"email": email})
+            if not u:
+                u = {
+                    "email": email,
+                    "name": payload.get("name") or email.split("@")[0],
+                    "role": "student",  # default role; change if you want
+                    "avatar": payload.get("picture"),
+                    "provider": "google",
+                    "created_at": _now(),
+                }
+                ins = users.insert_one(u)
+                u["_id"] = ins.inserted_id
+
+            # Issue your existing JWT
+            token = _issue_jwt(u)
+            return jsonify({
+                "token": token,
+                "user": {
+                    "id": str(u["_id"]),
+                    "email": u["email"],
+                    "name": u.get("name"),
+                    "role": u.get("role", "student"),
+                    "avatar": u.get("avatar"),
+                },
+            }), 200
+
+        except ValueError:
+            # Token invalid/expired or wrong audience
+            return jsonify({"error": "invalid Google token"}), 401
+        except Exception:
+            return jsonify({"error": "Google login failed"}), 500
+
+    # -------- Register (email/password) --------
     @bp.route("/api/auth/register", methods=["POST", "OPTIONS"])
     @cross_origin(**_cors_args())
     def register():
@@ -138,6 +206,7 @@ def make_auth_blueprint(db):
             "user": {"id": str(doc["_id"]), "email": email, "name": name, "role": doc["role"]},
         }), 201
 
+    # -------- Login (email/password) --------
     @bp.route("/api/auth/login", methods=["POST", "OPTIONS"])
     @cross_origin(**_cors_args())
     def login():
@@ -159,6 +228,7 @@ def make_auth_blueprint(db):
             "user": {"id": str(u["_id"]), "email": u["email"], "name": u.get("name"), "role": u.get("role", "instructor")},
         }), 200
 
+    # -------- Me --------
     @bp.route("/api/me", methods=["GET", "OPTIONS"])
     @cross_origin(**_cors_args())
     @require_auth

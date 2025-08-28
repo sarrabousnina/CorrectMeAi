@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { AUTH_BASE, setAuth } from "../api";
 import "./Login.css";
+
+const GOOGLE_CLIENT_ID =
+    "726239267818-5db8k7sjccnur2oam8egk3k5r7carejj.apps.googleusercontent.com"; // public-safe
 
 export default function Login() {
     const [email, setEmail] = useState("");
@@ -11,6 +14,35 @@ export default function Login() {
     const nav = useNavigate();
     const loc = useLocation();
     const from = loc.state?.from?.pathname || "/";
+
+    // Ref to mount Google's button
+    const googleDivRef = useRef(null);
+
+    useEffect(() => {
+        // Render Google button when the script is available
+        if (!window.google || !googleDivRef.current) return;
+
+        window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: ({ credential }) => handleGoogleIdToken(credential),
+            ux_mode: "popup",
+        });
+
+        // Clear previous button (React fast refresh, route changes, etc.)
+        googleDivRef.current.innerHTML = "";
+
+        window.google.accounts.id.renderButton(googleDivRef.current, {
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            shape: "pill",
+            logo_alignment: "left",
+            width: 280,
+        });
+
+        // Optional: enable One Tap (comment out if you don’t want the prompt)
+        // window.google.accounts.id.prompt();
+    }, []);
 
     async function onSubmit(e) {
         e.preventDefault();
@@ -45,6 +77,25 @@ export default function Login() {
             setErr("Network error. Is the auth server running?");
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function handleGoogleIdToken(idToken) {
+        try {
+            setErr("");
+            const r = await fetch(`${AUTH_BASE}/auth/google`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken }),
+            });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.token) {
+                throw new Error(j?.error || "Google login failed");
+            }
+            setAuth(j.token, j.user);
+            nav(from, { replace: true });
+        } catch (e) {
+            setErr(e.message || "Google login failed");
         }
     }
 
@@ -94,7 +145,7 @@ export default function Login() {
 
                     {err && <div className="login-error">{err}</div>}
 
-                    <div className="login-actions">
+                    <div className="login-actions" style={{ marginTop: 8 }}>
                         <button
                             type="submit"
                             className="login-btn login-btn--primary"
@@ -104,6 +155,24 @@ export default function Login() {
                         </button>
                     </div>
                 </form>
+
+                {/* Divider */}
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    marginTop: 16,
+                    marginBottom: 8
+                }}>
+                    <div style={{ height: 1, background: "var(--border)", flex: 1 }} />
+                    <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>or</span>
+                    <div style={{ height: 1, background: "var(--border)", flex: 1 }} />
+                </div>
+
+                {/* Google Sign-In button mount point */}
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+                    <div ref={googleDivRef} />
+                </div>
 
                 <footer className="login-footer">
                     No account? <Link to="/signup" className="login-link">Create one</Link>

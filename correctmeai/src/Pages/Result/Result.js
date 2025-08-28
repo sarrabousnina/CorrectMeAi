@@ -1,13 +1,83 @@
-// src/Pages/Result/Result.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom"; // ⬅ add useNavigate
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import "./Result.css";
 import { GRADER_BASE, SUB_API, authedFetch } from "../../JWT/api";
+
+function PointsCell({ row }) {
+    return (
+        <div>
+            {/* RAW question total */}
+            <div className="font-semibold">{Number(row.points ?? 0).toFixed(2)}</div>
+
+            {/* RAW per-input steps (1 / 0.5 / 0.25) */}
+            {Array.isArray(row.subparts) && row.subparts.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                    {row.subparts.map((sp) => (
+                        <span
+                            key={sp.sub_id}
+                            className="inline-block border rounded-full px-2 py-0.5 text-xs"
+                            title={`sub ${sp.sub_id}: ${Number(sp.points ?? 0).toFixed(2)} pts`}
+                        >
+              {sp.sub_id}: {Number(sp.points ?? 0).toFixed(2)}
+            </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function AwardedCell({ row }) {
+    const ok = (row.awarded ?? 0) >= (row.points ?? 0) - 1e-9;
+    return (
+        <div>
+            {/* RAW question awarded */}
+            <span className={`pill ${ok ? "pill--ok" : "pill--bad"}`}>
+        {Number(row.awarded ?? 0).toFixed(2)}
+      </span>
+
+            {/* RAW per-input awarded */}
+            {Array.isArray(row.subparts) && row.subparts.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                    {row.subparts.map((sp) => (
+                        <span
+                            key={sp.sub_id}
+                            className={
+                                "inline-block rounded-full px-2 py-0.5 text-xs border " +
+                                ((sp.awarded ?? 0) > 0
+                                    ? "bg-green-100 border-green-300"
+                                    : "bg-red-100 border-red-300")
+                            }
+                            title={`sub ${sp.sub_id}: ${Number(sp.awarded ?? 0).toFixed(2)} / ${Number(sp.points ?? 0).toFixed(2)}`}
+                        >
+              {sp.sub_id}: {Number(sp.awarded ?? 0).toFixed(2)}
+            </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function CommentCell({ row }) {
+    if (Array.isArray(row.subparts) && row.subparts.length > 0) {
+        return (
+            <ul className="m-0 p-0 list-none text-xs text-gray-500">
+                {row.subparts.map((sp) => (
+                    <li key={sp.sub_id}>
+                        <strong>{sp.sub_id}</strong>: {sp.comment ?? ""}
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+    return <span className="muted">{row.comment}</span>;
+}
 
 export default function Result() {
     const { submissionId } = useParams();
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate(); // ⬅ add
+    const navigate = useNavigate();
     const student = searchParams.get("student");
 
     const [data, setData] = useState(null);
@@ -23,12 +93,8 @@ export default function Result() {
                 setErr("");
 
                 let sub;
-
                 if (submissionId && submissionId !== "undefined") {
-                    // fetch submission from the corrector server (:5005 / SUB_API)
-                    const r = await authedFetch(
-                        `${SUB_API}/submissions/${encodeURIComponent(submissionId)}`
-                    );
+                    const r = await authedFetch(`${SUB_API}/submissions/${encodeURIComponent(submissionId)}`);
                     if (!r.ok) throw new Error(`Failed to fetch submission (${r.status})`);
                     sub = await r.json();
                 } else {
@@ -41,11 +107,8 @@ export default function Result() {
                 if (!alive) return;
                 setData(sub);
 
-                // fetch exam info from the main server (:5006)
                 if (sub?.exam_id) {
-                    const rex = await authedFetch(
-                        `${GRADER_BASE}/api/exams/${encodeURIComponent(sub.exam_id)}`
-                    );
+                    const rex = await authedFetch(`${GRADER_BASE}/api/exams/${encodeURIComponent(sub.exam_id)}`);
                     if (rex.ok) {
                         const ex = await rex.json();
                         if (alive) setExam(ex);
@@ -64,13 +127,10 @@ export default function Result() {
         };
     }, [submissionId, student]);
 
-    const total = data?.score ?? null;
+    const total = data?.score ?? null; // this is the /20, now snapped to .25
     const feedback = data?.feedback || "";
     const details = Array.isArray(data?.grading_details) ? data.grading_details : [];
-    const percent = useMemo(
-        () => (total == null ? null : Math.round((total / 20) * 100)),
-        [total]
-    );
+    const percent = useMemo(() => (total == null ? null : Math.round((total / 20) * 100)), [total]);
 
     if (loading) return <div className="page pad text-muted">Loading result…</div>;
     if (err) return <div className="page pad text-error">Error: {err}</div>;
@@ -88,8 +148,6 @@ export default function Result() {
                         : "badge--rose";
 
     const barClass = percent >= 50 ? "bar--ok" : "bar--bad";
-
-    // exam id for the Grades page & for new submissions
     const examId = data?.exam_id || exam?._id;
 
     return (
@@ -111,13 +169,13 @@ export default function Result() {
                         {percent !== null && (
                             <div className="score">
                                 <div className="score__label">Score (/20)</div>
-                                <div className="score__value">{total?.toFixed(2)}</div>
+                                <div className="score__value">{Number(total ?? 0).toFixed(2)}</div>
                                 <div className={`badge ${gradeClass}`}>
                                     <strong>{percent}%</strong>&nbsp;overall
                                 </div>
 
                                 <div className="progress">
-                                    <div className={`bar ${barClass}`} style={{ width: `${percent}%` }} />
+                                    <div className={`bar ${barClass}`} style={{width: `${percent}%`}}/>
                                 </div>
                                 <div className="progress__caption">Progress</div>
                             </div>
@@ -149,40 +207,28 @@ export default function Result() {
                                     <th>Type</th>
                                     <th>Expected</th>
                                     <th>Student</th>
-                                    <th className="right">Points</th>
-                                    <th className="right">Awarded</th>
+                                    <th className="right">Points (raw)</th>
+                                    <th className="right">Awarded (raw)</th>
                                     <th>Comment</th>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {details.map((d, idx) => {
-                                    const ok = d.awarded >= d.points - 1e-9;
-                                    return (
-                                        <tr key={idx}>
-                                            <td className="strong">{d.question_id || `#${d.index}`}</td>
-                                            <td className="muted">{d.type}</td>
-                                            <td>
-                                                <span className="chip">{fmt(d.expected)}</span>
-                                            </td>
-                                            <td>
-                                                <span className="chip">{fmt(d.student)}</span>
-                                            </td>
-                                            <td className="right">{round2(d.points)}</td>
-                                            <td className="right">
-                          <span className={`pill ${ok ? "pill--ok" : "pill--bad"}`}>
-                            {round2(d.awarded)}
-                          </span>
-                                            </td>
-                                            <td className="muted">{d.comment}</td>
-                                        </tr>
-                                    );
-                                })}
+                                {details.map((d, idx) => (
+                                    <tr key={idx}>
+                                        <td className="strong">{d.question_id || `#${d.index}`}</td>
+                                        <td className="muted">{d.type}</td>
+                                        <td><span className="chip">{fmt(d.expected)}</span></td>
+                                        <td><span className="chip">{fmt(d.student)}</span></td>
+                                        <td className="right"><PointsCell row={d} /></td>
+                                        <td className="right"><AwardedCell row={d} /></td>
+                                        <td><CommentCell row={d} /></td>
+                                    </tr>
+                                ))}
                                 </tbody>
                             </table>
                         </div>
 
                         <div className="actions pad no-print">
-                            {/* View Grades for this exam */}
                             {examId && (
                                 <Link
                                     to={`/exam/${encodeURIComponent(examId)}/grades`}
@@ -192,7 +238,6 @@ export default function Result() {
                                 </Link>
                             )}
 
-                            {/* NEW: Add submission button */}
                             <button
                                 className="btn btn--ghost"
                                 onClick={() =>
@@ -213,24 +258,19 @@ export default function Result() {
                             <button
                                 onClick={async () => {
                                     try {
-                                        const id =
-                                            data?._id || (submissionId !== "undefined" ? submissionId : null);
+                                        const id = data?._id || (submissionId !== "undefined" ? submissionId : null);
                                         if (!id) return;
 
-                                        // regrade on corrector server (POST preferred)
                                         await authedFetch(
                                             `${SUB_API}/submissions/${encodeURIComponent(id)}/regrade`,
                                             { method: "POST" }
                                         );
 
-                                        // refetch the submission from corrector
                                         const res = await authedFetch(
                                             `${SUB_API}/submissions/${encodeURIComponent(id)}`
                                         );
                                         if (res.ok) setData(await res.json());
-                                    } catch {
-                                        /* ignore */
-                                    }
+                                    } catch {/* ignore */}
                                 }}
                                 className="btn btn--primary"
                             >
@@ -247,13 +287,5 @@ export default function Result() {
 function fmt(v) {
     if (v === null || v === undefined) return "—";
     if (typeof v === "string") return v;
-    try {
-        return JSON.stringify(v);
-    } catch {
-        return String(v);
-    }
-}
-function round2(n) {
-    if (n === null || n === undefined) return "0.00";
-    return Number(n).toFixed(2);
+    try { return JSON.stringify(v); } catch { return String(v); }
 }

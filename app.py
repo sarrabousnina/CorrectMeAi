@@ -38,7 +38,7 @@ CORS(
     resources={
         r"/api/*": {"origins": [FRONTEND_ORIGIN]},
         r"/ListExams": {"origins": [FRONTEND_ORIGIN]},
-        r"/ai/*": {"origins": [FRONTEND_ORIGIN]},   # ⬅ add this line
+        r"/ai/*": {"origins": [FRONTEND_ORIGIN]},   # <-- ensure this is here
     },
     supports_credentials=True,
 )

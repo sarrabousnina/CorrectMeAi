@@ -24,22 +24,18 @@ export default function Login() {
 
         setSubmitting(true);
         try {
-            // AUTH_BASE should already include `/api` (e.g., http://localhost:5006/api)
             const r = await fetch(`${AUTH_BASE}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: trimmedEmail, password }),
             });
-
             const j = await r.json().catch(() => ({}));
 
             if (!r.ok || !j.token) {
-                const msg =
+                setErr(
                     j?.error ||
-                    (r.status === 401
-                        ? "Invalid email or password."
-                        : "Login failed");
-                setErr(msg);
+                    (r.status === 401 ? "Invalid email or password." : "Login failed")
+                );
                 return;
             }
 
@@ -54,10 +50,21 @@ export default function Login() {
 
     return (
         <div className="login-page">
+            {/* Top bar */}
+            <div className="login-topbar">
+                <button className="topbar-back" type="button" onClick={() => nav("/welcome")}>
+                    ← Back to HomePage
+                </button>
+                <div className="topbar-logo" onClick={() => nav("/")}>
+                    <img src="/logo.png" alt="CorrectMeAi Logo" />
+                    <span className="topbar-brand-text">CorrectMeAi</span>
+                </div>
+            </div>
+
             <div className="login-card">
                 <header className="login-header">
                     <h1 className="login-title">Sign in</h1>
-                    <p className="login-subtitle">Welcome back — access your dashboard.</p>
+                    <p className="login-subtitle">Welcome back !</p>
                 </header>
 
                 <form className="login-form" onSubmit={onSubmit}>
@@ -88,14 +95,6 @@ export default function Login() {
                     {err && <div className="login-error">{err}</div>}
 
                     <div className="login-actions">
-                        <button
-                            type="button"
-                            className="login-btn login-btn--ghost"
-                            onClick={() => nav("/")}
-                            disabled={submitting}
-                        >
-                            Back
-                        </button>
                         <button
                             type="submit"
                             className="login-btn login-btn--primary"

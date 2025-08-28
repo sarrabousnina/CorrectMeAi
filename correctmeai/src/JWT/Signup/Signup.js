@@ -16,9 +16,9 @@ export default function Signup() {
         e.preventDefault();
         setErr("");
 
-        // quick client-side validation
         const trimmedEmail = email.trim().toLowerCase();
         const trimmedName = (name || "").trim();
+
         if (!trimmedEmail || !password) {
             setErr("Email and password are required.");
             return;
@@ -30,7 +30,6 @@ export default function Signup() {
 
         setSubmitting(true);
         try {
-            // IMPORTANT: backend route is /api/auth/register (AUTH_BASE already includes /api)
             const r = await fetch(`${AUTH_BASE}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -45,7 +44,6 @@ export default function Signup() {
             const j = await r.json().catch(() => ({}));
 
             if (!r.ok || !j.token) {
-                // surface common server messages
                 const msg =
                     j?.error ||
                     (r.status === 409
@@ -59,10 +57,9 @@ export default function Signup() {
                 return;
             }
 
-            // success: store token and user, go home
             setAuth(j.token, j.user);
             nav("/", { replace: true });
-        } catch (e) {
+        } catch {
             setErr("Network error. Is the backend running?");
         } finally {
             setSubmitting(false);
@@ -71,6 +68,17 @@ export default function Signup() {
 
     return (
         <div className="signup-page">
+            {/* Top bar (same as login) */}
+            <div className="signup-topbar">
+                <button className="topbar-back" type="button" onClick={() => nav("/welcome")}>
+                    ← Back to HomePage
+                </button>
+                <div className="topbar-logo" onClick={() => nav("/")}>
+                    <img src="/logo.png" alt="CorrectMeAi Logo"/>
+                    <span className="topbar-brand-text">CorrectMeAi</span>
+                </div>
+            </div>
+
             <div className="signup-card">
                 <header className="signup-header">
                     <h1 className="signup-title">Create account</h1>

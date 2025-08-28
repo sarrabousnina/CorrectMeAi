@@ -36,7 +36,7 @@ export default function ProfChat({ sessionId = "prof-global" }) {
         const res = await fetch(`${API_BASE}/ai/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text, session_id: sessionId }),
+            body: JSON.stringify({ message: text, session_id: sessionId, use_rag: true }),
         });
 
         // Prepare an empty assistant bubble for streaming

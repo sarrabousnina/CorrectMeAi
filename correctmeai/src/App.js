@@ -19,7 +19,6 @@ import Result from "./Pages/Result/Result";
 import Grades from "./Pages/Grades/Grades";
 import ListExams from "./Pages/ListExams/ListExams";
 import Dashboard from "./Pages/Dashboard/Dashboard";
-import ExamGenerator from "./Pages/ExamGenerator/ExamGenerator";
 import MainLayout from "./MainLayout";
 
 // 🔹 NEW: import the chat page
@@ -119,15 +118,7 @@ function App() {
                             </RequireAuth>
                         }
                     />
-                    <Route
-                        path="/ExamGenerator"
-                        element={
-                            <RequireAuth>
-                                <ExamGenerator />
-                            </RequireAuth>
-                        }
-                    />
-                    {/* 🔹 NEW Assistant route */}
+
                     <Route
                         path="/assistant"
                         element={

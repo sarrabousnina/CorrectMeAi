@@ -155,19 +155,6 @@ export default function Sidebar() {
                     <span className="sb__label">Dashboard</span>
                 </NavLink>
 
-                <NavLink to="/ExamGenerator" className="sb__link">
-          <span className="sb__icon">
-            <img
-                src={generatorIcon}
-                alt="Exam generator"
-                className="sb__icon-img"
-                width={22}
-                height={22}
-                loading="lazy"
-            />
-          </span>
-                    <span className="sb__label">Exam Generator</span>
-                </NavLink>
             </nav>
 
             {/* FOOTER: Theme + Logout */}

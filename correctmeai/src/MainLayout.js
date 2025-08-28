@@ -12,8 +12,9 @@ import ProfChat from "./Components/ProfChat/ProfChat";
 export default function MainLayout() {
     const { pathname } = useLocation();
 
-    // Hide the stepper on these paths (prefix match, case-insensitive)
-    const HIDE_STEPPER_ON = ["/dashboard"];
+// Hide the stepper on these paths (prefix match, case-insensitive)
+    const HIDE_STEPPER_ON = ["/dashboard", "/listexams"];
+
     const shouldHideStepper = HIDE_STEPPER_ON.some((p) =>
         pathname.toLowerCase().startsWith(p)
     );

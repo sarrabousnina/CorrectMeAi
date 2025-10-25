@@ -1,16 +1,21 @@
-# mongo.py
 from pymongo import MongoClient, DESCENDING
-import config  # <— new
+from dotenv import load_dotenv
+import os
 
-client = MongoClient(config.MONGO_URI)
+# Load environment variables (safe to call multiple times)
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+
+client = MongoClient(MONGO_URI)
 db = client["exam_system"]
 
 # Collections
-exams_collection        = db["exams"]
-submissions_collection  = db["submissions"]
-users_collection        = db["users"] 
+exams_collection = db["exams"]
+submissions_collection = db["submissions"]
+users_collection = db["users"]
 
-# Helpful indexes (safe if already exist)
+# Ensure essential indexes
 users_collection.create_index("email", unique=True)
 submissions_collection.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
 exams_collection.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])

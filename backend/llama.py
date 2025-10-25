@@ -5,29 +5,39 @@ import requests
 import jwt
 from datetime import datetime
 from bson import ObjectId
-from mongo import exams_collection
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import config  # JWT_SECRET for decoding the token
+from dotenv import load_dotenv  # ← NEW
 
-# === CONFIGURATION ===
-# ⚠️ Hardcoded key (Option C). Replace the placeholder with YOUR real key.
-# Do NOT commit real secrets to version control.
-TOGETHER_API_KEY = "3e69abd7b145cb5c9e490f67e94559e312d35c251bdf8ef03f009fc76016a9c9"
+# Load environment variables from .env file
+load_dotenv()
 
-TOGETHER_ENDPOINT = "https://api.together.xyz/v1/chat/completions"
-MODEL_NAME = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+# === CONFIGURATION FROM .env ===
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+TOGETHER_ENDPOINT = os.getenv("TOGETHER_ENDPOINT", "https://api.together.xyz/v1/chat/completions")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-4-Scout-17B-16E-Instruct")
+JWT_SECRET = os.getenv("JWT_SECRET")
+
+# Validate required env vars
+if not TOGETHER_API_KEY:
+    raise RuntimeError("❌ Missing TOGETHER_API_KEY in .env")
+if not JWT_SECRET:
+    raise RuntimeError("❌ Missing JWT_SECRET in .env")
+
+# === MongoDB Setup (assuming you have mongo.py that uses MONGO_URI) ===
+# If your `mongo.py` also needs MONGO_URI, ensure it uses `os.getenv("MONGO_URI")`
+from mongo import exams_collection
 
 # === Flask App Setup ===
 app = Flask(__name__)
-CORS(app)  # Enable CORS for React frontend
+CORS(app)
 
 def _bearer():
     h = request.headers.get("Authorization") or ""
     return h.split(" ", 1)[1].strip() if h.lower().startswith("bearer ") else None
 
 def _decode_jwt(token: str) -> dict:
-    return jwt.decode(token, config.JWT_SECRET, algorithms=["HS256"])
+    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])  # ← Use env var
 
 def _exam_summary(d: dict):
     has_key = bool(d.get("answer_key")) and len(d["answer_key"]) > 0
@@ -43,7 +53,7 @@ def _exam_summary(d: dict):
 
 def extract_text_from_image(image_bytes):
     if not TOGETHER_API_KEY:
-        raise RuntimeError("TOGETHER_API_KEY is not set (hardcoded empty).")
+        raise RuntimeError("TOGETHER_API_KEY is not set.")
 
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -118,19 +128,20 @@ def extract_text():
         return jsonify({"text": full_text})
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": f"Extraction failed: {str(e)}"}), 500
 
 @app.route("/api/submit-answer-key", methods=["POST"])
 def submit_answer_key():
-    # Require auth, so we can stamp created_by
     tok = _bearer()
     if not tok:
         return jsonify({"error": "missing auth token"}), 401
     try:
         user = _decode_jwt(tok)
-    except Exception:
-        return jsonify({"error": "invalid/expired token"}), 401
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "invalid token"}), 401
 
     data = request.json or {}
     title = (data.get("title") or "").strip()
@@ -146,7 +157,7 @@ def submit_answer_key():
         "answer_key": answer_key,
         "pages": data.get("pages") or [],
         "stats": {"submissions": 0},
-        "created_by": owner_oid,          # 🔹 ownership
+        "created_by": owner_oid,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
     }

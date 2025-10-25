@@ -1,0 +1,89 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+.env
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+.env
+
+# ========================
+# Node.js / React Frontend
+# ========================
+node_modules/
+build/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+
+# ========================
+# IDE / Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ========================
+# Secrets & Config
+# ========================
+.env
+.env.local
+.env.*.local
+
+# ========================
+# Logs & Temp Files
+# ========================
+logs/
+*.log
+tmp/
+
+# ========================
+# OS Specific
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# MongoDB / Data
+# ========================
+data/
+*.bson
+*.json
+
+# ========================
+# Docker (if you add it later)
+# ========================
+docker-compose.yml
+Dockerfile
+
+
+/Qwen3-0.6B-GGUF/

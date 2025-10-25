@@ -1,21 +1,21 @@
-# app.py — MAIN BACKEND (auth + exams) on port 5006
+# app.py — MAIN BACKEND (auth + exams + AI) on port 5006
 import os
-from datetime import datetime
-
+from datetime import datetime, timedelta
 from bson import ObjectId
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pymongo import MongoClient, DESCENDING
-from datetime import timedelta
-from ai_assistant import bp_ai
+from dotenv import load_dotenv  # ← NEW
 
-
-
-import config
-from auth import make_auth_blueprint  # provides /api/auth/* and decorators
+# Load environment variables from .env
+load_dotenv()
 
 # ---------- DB ----------
-MONGO_URI = os.getenv("MONGO_URI", config.MONGO_URI)
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("❌ Missing JWT_SECRET in .env")
+
 client = MongoClient(MONGO_URI)
 db = client["exam_system"]
 exams = db["exams"]
@@ -30,7 +30,9 @@ exams.create_index("created_by")
 # ---------- APP / CORS ----------
 app = Flask(__name__)
 
-app.register_blueprint(bp_ai, url_prefix="/ai")   # ✅ add this
+# Import AI blueprint (assumes it uses JWT_SECRET from env or shared auth)
+from ai_assistant import bp_ai
+app.register_blueprint(bp_ai, url_prefix="/ai")
 
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 CORS(
@@ -38,31 +40,32 @@ CORS(
     resources={
         r"/api/*": {"origins": [FRONTEND_ORIGIN]},
         r"/ListExams": {"origins": [FRONTEND_ORIGIN]},
-        r"/ai/*": {"origins": [FRONTEND_ORIGIN]},   # <-- ensure this is here
+        r"/ai/*": {"origins": [FRONTEND_ORIGIN]},
     },
     supports_credentials=True,
 )
 
-
 @app.after_request
 def _add_cors_headers(resp):
-    resp.headers.setdefault("Access-Control-Allow-Origin", FRONTEND_ORIGIN)  # not "*"
+    resp.headers.setdefault("Access-Control-Allow-Origin", FRONTEND_ORIGIN)
     resp.headers.setdefault("Vary", "Origin")
     resp.headers.setdefault("Access-Control-Allow-Headers", "Content-Type, Authorization")
     resp.headers.setdefault("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-    resp.headers.setdefault("Access-Control-Allow-Credentials", "true")      # <-- add this
+    resp.headers.setdefault("Access-Control-Allow-Credentials", "true")
     return resp
 
-
+# Preflight handlers
 @app.route("/api/<path:_any>", methods=["OPTIONS"])
 @app.route("/ListExams", methods=["OPTIONS"])
+@app.route("/ai/<path:_any>", methods=["OPTIONS"])
 def _preflight(_any=None):
     return ("", 200)
 
-# ---------- AUTH ROUTES ----------
-# Register the auth blueprint here (this server owns /api/auth/*)
-auth_bp, require_auth, require_role = make_auth_blueprint(db)
-app.register_blueprint(auth_bp)
+# ---------- AUTH ----------
+# Pass JWT_SECRET and db to auth module (update auth.py accordingly — see note below)
+from auth import make_auth_blueprint
+auth_bp, require_auth, require_role = make_auth_blueprint(db, jwt_secret=JWT_SECRET)
+app.register_blueprint(auth_bp, url_prefix="/api/auth")
 
 # ---------- HELPERS ----------
 def _as_oid(s):
@@ -84,12 +87,11 @@ def _exam_summary(d: dict):
         "createdAt": d.get("created_at").isoformat() + "Z" if d.get("created_at") else None,
     }
 
-# ---------- ROUTES (MAIN) ----------
+# ---------- HEALTH & ROUTES ----------
 @app.get("/health")
 def health():
     return jsonify({"ok": True})
 
-# Create an exam (stamps created_by = current user)
 @app.post("/api/exams")
 @require_auth
 def api_create_exam():
@@ -115,32 +117,9 @@ def api_create_exam():
     doc["_id"] = ins.inserted_id
     return jsonify(_exam_summary(doc)), 201
 
-# List exams filtered by connected user (admins see all; include legacy)
 @app.get("/api/exams")
 @require_auth
 def api_list_exams():
-    proj = {"title": 1, "answer_key": 1, "pages": 1, "stats": 1, "created_by": 1, "created_at": 1}
-
-    if g.user.get("role") == "admin":
-        q = {}
-    else:
-        user_oid = _as_oid(g.user.get("sub"))
-        user_str = g.user.get("sub")
-        q = {
-            "$or": [
-                {"created_by": user_oid},              # preferred (ObjectId)
-                {"created_by": user_str},              # tolerate legacy string
-                {"created_by": {"$exists": False}},    # legacy docs without owner
-            ]
-        }
-
-    docs = list(exams.find(q, proj).sort([("created_at", -1), ("_id", -1)]))
-    return jsonify([_exam_summary(d) for d in docs]), 200
-
-# (Legacy) ListExams: same result as /api/exams, requires auth too
-@app.get("/ListExams")
-@require_auth
-def list_exams():
     proj = {"title": 1, "answer_key": 1, "pages": 1, "stats": 1, "created_by": 1, "created_at": 1}
     if g.user.get("role") == "admin":
         q = {}
@@ -154,11 +133,15 @@ def list_exams():
                 {"created_by": {"$exists": False}},
             ]
         }
-
     docs = list(exams.find(q, proj).sort([("created_at", -1), ("_id", -1)]))
     return jsonify([_exam_summary(d) for d in docs]), 200
 
-# Minimal fetch of one exam (admin or owner/legacy)
+@app.get("/ListExams")
+@require_auth
+def list_exams():
+    # Same as /api/exams — kept for legacy compatibility
+    return api_list_exams()
+
 @app.get("/api/exams/<eid>")
 @require_auth
 def api_get_exam(eid):
@@ -181,19 +164,14 @@ def api_get_exam(eid):
 
     return jsonify({"_id": str(doc["_id"]), "title": doc.get("title")}), 200
 
-
-
-# ---------- DASHBOARD SUMMARY (all charts in one call) ----------
-
+# ---------- DASHBOARD ----------
 def _start_of_week(d: datetime) -> datetime:
-    # Monday as week start
     monday = d - timedelta(days=d.weekday())
     return monday.replace(hour=0, minute=0, second=0, microsecond=0)
 
 @app.get("/api/dashboard/summary")
 @require_auth
 def api_dashboard_summary():
-    # Optional: filter by a single exam ?examId=<id>
     exam_id = request.args.get("examId")
     match = {}
     if exam_id:
@@ -202,11 +180,10 @@ def api_dashboard_summary():
             return jsonify({"error": "invalid examId"}), 400
         match["examId"] = oid
 
-    # ----- KPIs -----
-    exams_count       = exams.count_documents({})                  # total exams
-    subs_count        = submissions.count_documents(match)         # total submissions (optionally for one exam)
-    corrected_count   = submissions.count_documents({**match, "corrected": True})
-    avg_grade         = 0.0
+    exams_count = exams.count_documents({})
+    subs_count = submissions.count_documents(match)
+    corrected_count = submissions.count_documents({**match, "corrected": True})
+    avg_grade = 0.0
 
     avg_cursor = submissions.aggregate([
         {"$match": {**match, "grade": {"$ne": None}}},
@@ -216,7 +193,6 @@ def api_dashboard_summary():
     if avg_doc:
         avg_grade = float(avg_doc.get("avg", 0.0))
 
-    # ----- Grade distribution (0–4, 4–8, 8–12, 12–16, 16–20) -----
     buckets = {"0": 0, "4": 0, "8": 0, "12": 0, "16": 0}
     for row in submissions.aggregate([
         {"$match": {**match, "grade": {"$ne": None}}},
@@ -232,16 +208,14 @@ def api_dashboard_summary():
             buckets[key] = row["count"]
 
     grade_distribution = [
-        {"bucket": "0–4",  "count": buckets["0"]},
-        {"bucket": "4–8",  "count": buckets["4"]},
+        {"bucket": "0–4", "count": buckets["0"]},
+        {"bucket": "4–8", "count": buckets["4"]},
         {"bucket": "8–12", "count": buckets["8"]},
-        {"bucket": "12–16","count": buckets["12"]},
-        {"bucket": "16–20","count": buckets["16"]},
+        {"bucket": "12–16", "count": buckets["12"]},
+        {"bucket": "16–20", "count": buckets["16"]},
     ]
 
-    # ----- Submissions over time (Mon..Sun of current week) -----
     sow = _start_of_week(datetime.utcnow())
-    # Mongo $dayOfWeek: Sun=1..Sat=7
     week_counts = {i: 0 for i in range(1, 8)}
     for row in submissions.aggregate([
         {"$match": {**match, "created_at": {"$gte": sow}}},
@@ -249,22 +223,18 @@ def api_dashboard_summary():
     ]):
         week_counts[row["_id"]] = row["count"]
 
-    def dow_index(name: str) -> int:
-        return {"Sun":1, "Mon":2, "Tue":3, "Wed":4, "Thu":5, "Fri":6, "Sat":7}[name]
-
+    dow_map = {"Sun": 1, "Mon": 2, "Tue": 3, "Wed": 4, "Thu": 5, "Fri": 6, "Sat": 7}
     submissions_over_time = [
-        {"date": d, "count": week_counts[dow_index(d)]}
-        for d in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        {"date": d, "count": week_counts[dow_map[d]]}
+        for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     ]
 
-    # ----- Correction status -----
     pending = max(subs_count - corrected_count, 0)
     correction_status = [
         {"name": "Corrected", "value": corrected_count},
-        {"name": "Pending",   "value": pending},
+        {"name": "Pending", "value": pending},
     ]
 
-    # ----- Time per copy (AI vs Manual) — only if you store those fields -----
     time_saved = []
     time_pipeline = [
         {"$match": {**match, "aiTimeHours": {"$ne": None}, "manualTimeHours": {"$ne": None}}},
@@ -284,7 +254,6 @@ def api_dashboard_summary():
             "manual": round(float(row.get("manual") or 0), 2),
         })
 
-    # ----- Top performers -----
     top_students = []
     for row in submissions.aggregate([
         {"$match": {**match, "grade": {"$ne": None}}},
@@ -301,20 +270,16 @@ def api_dashboard_summary():
             "submissions": subs_count,
             "corrected": corrected_count,
             "avgGrade": round(avg_grade, 1),
-            # TODO: compute real deltas later if you want
             "deltas": {"exams": 2, "submissions": 41, "corrected": 23, "avgGrade": 0.4},
         },
-        "correctionStatus":     correction_status,
-        "gradeDistribution":    grade_distribution,
-        "submissionsOverTime":  submissions_over_time,
-        "timeSaved":            time_saved,
-        "topStudents":          top_students,
+        "correctionStatus": correction_status,
+        "gradeDistribution": grade_distribution,
+        "submissionsOverTime": submissions_over_time,
+        "timeSaved": time_saved,
+        "topStudents": top_students,
     }), 200
-@app.route("/ai/<path:_any>", methods=["OPTIONS"])
-def _preflight_ai(_any=None):
-    return ("", 200)
 
-
+# ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5006"))
     app.run(host="0.0.0.0", port=port, debug=True)

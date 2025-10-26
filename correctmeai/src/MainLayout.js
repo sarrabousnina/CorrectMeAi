@@ -5,14 +5,11 @@ import "./Components/SideBar/SideBar.css";
 
 import RouteStepper from "./Components/Steps/RouteStepper";
 import "./Components/Steps/RouteStepper.css";
-
-// ⬅️ Import your ProfChat
 import ProfChat from "./Components/ProfChat/ProfChat";
 
 export default function MainLayout() {
     const { pathname } = useLocation();
 
-// Hide the stepper on these paths (prefix match, case-insensitive)
     const HIDE_STEPPER_ON = ["/dashboard", "/listexams"];
 
     const shouldHideStepper = HIDE_STEPPER_ON.some((p) =>

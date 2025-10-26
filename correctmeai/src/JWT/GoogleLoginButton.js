@@ -1,4 +1,3 @@
-// src/components/GoogleLoginButton.jsx
 import { useEffect, useRef } from "react";
 
 const GOOGLE_CLIENT_ID =

@@ -1,4 +1,3 @@
-# app.py — MAIN BACKEND (auth + exams + AI) on port 5006
 import os
 from datetime import datetime, timedelta
 from bson import ObjectId

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./Grades.css";
-import { SUB_API, authedFetch } from "../../api";
+import { SUB_API, authedFetch } from "../../JWT/api";
 
 export default function Grades() {
   const { examId: examIdFromRoute } = useParams();

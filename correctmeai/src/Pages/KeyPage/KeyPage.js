@@ -1,7 +1,7 @@
 // src/Pages/KeyPage/KeyPage.jsx
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { authedFetch } from "../../api";
+import { authedFetch } from "../../JWT/api";
 
 const LLAMA_BASE = process.env.REACT_APP_LLAMA_BASE || "http://localhost:5000";
 const API_URL = `${LLAMA_BASE}/api/submit-answer-key`;

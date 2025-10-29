@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { GRADER_BASE, SUB_API, authedFetch } from "../../api";
+import { GRADER_BASE, SUB_API, authedFetch } from "../../JWT/api";
 
 const Correction = () => {
   const location = useLocation();

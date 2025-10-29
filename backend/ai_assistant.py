@@ -1,7 +1,6 @@
-# ai_agent.py — Agent with RAG as a Tool
 import os
 import json
-import re
+import time
 from datetime import datetime
 from bson import ObjectId
 from flask import Blueprint, request, jsonify, g
@@ -10,22 +9,37 @@ import jwt
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from groq import Groq 
+from werkzeug.utils import secure_filename
 
 load_dotenv()
 
 # DB
-from mongo import exams_collection, submissions_collection, course_materials_collection
+from mongo import exams_collection, submissions_collection, courses_collection  # ← NEW: Add courses collection
 
 # Config
 JWT_SECRET = os.getenv("JWT_SECRET")
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
-TOGETHER_ENDPOINT = os.getenv("TOGETHER_ENDPOINT", "https://api.together.xyz/v1/chat/completions")
-TOGETHER_MODEL = os.getenv("TOGETHER_MODEL", "meta-llama/Llama-3-8b-chat-hf")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not all([JWT_SECRET, TOGETHER_API_KEY]):
-    raise RuntimeError("Missing required env vars")
+if not all([JWT_SECRET, GROQ_API_KEY]):
+    raise RuntimeError("Missing required env vars: JWT_SECRET, GROQ_API_KEY")
 
+# Groq client
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+# Use a fast, free Groq model
+GROQ_MODEL = "llama-3.1-8b-instant"
+
+# Embedding model
 EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Memory store
+SESSION_MEMORY = {}
+
+# Upload config
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 bp_ai = Blueprint("ai", __name__)
 
 # ---------- Auth ----------
@@ -44,226 +58,228 @@ def _require_auth():
     except Exception:
         return None, jsonify({"error": "invalid token"}), 401
 
-# ---------- RAG: Store Course Material ----------
-@bp_ai.route("/ai/upload-course", methods=["POST"])
-@cross_origin()
-def upload_course():
-    user, err, code = _require_auth()
-    if err:
-        return err, code
-
-    data = request.get_json()
-    course_text = data.get("text", "").strip()
-    course_name = data.get("name", "Untitled Course")
-
-    if not course_text:
-        return jsonify({"error": "Course text is required"}), 400
-
-    # Simple chunking: split by paragraphs
-    chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n", course_text) if chunk.strip()]
-    
-    # Embed and store
-    stored_chunks = []
-    for i, chunk in enumerate(chunks):
-        embedding = EMBEDDING_MODEL.encode(chunk).tolist()
-        doc = {
-            "user_id": ObjectId(user["sub"]),
-            "course_name": course_name,
-            "chunk_index": i,
-            "text": chunk,
-            "embedding": embedding,
-            "created_at": datetime.utcnow(),
-        }
-        course_materials_collection.insert_one(doc)
-        stored_chunks.append(doc)
-
-    return jsonify({
-        "message": f"✅ Uploaded {len(stored_chunks)} chunks for '{course_name}'",
-        "chunks_count": len(stored_chunks)
-    }), 201
-
 # ---------- TOOLS ----------
 def tool_list_exams(user_id):
-    exams = list(exams_collection.find(
-        {"created_by": ObjectId(user_id)},
-        {"title": 1, "created_at": 1}
-    ).sort([("created_at", -1)]))
-    return [{"id": str(e["_id"]), "title": e["title"]} for e in exams]
+    """List exams owned by user"""
+    try:
+        exams = list(exams_collection.find(
+            {"created_by": ObjectId(user_id)},
+            {"title": 1, "created_at": 1}
+        ).sort([("created_at", -1)]))
+        
+        if not exams:
+            return "No exams found."
+            
+        result = []
+        for exam in exams:
+            result.append({
+                "id": str(exam["_id"]),
+                "title": exam.get("title", "Untitled Exam"),
+                "created_at": exam.get("created_at").isoformat() if exam.get("created_at") else "Unknown"
+            })
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return f"Error listing exams: {str(e)}"
 
 def tool_get_exam(exam_id):
-    exam = exams_collection.find_one({"_id": ObjectId(exam_id)})
-    return exam if exam else None
+    """Get exam details"""
+    try:
+        if not exam_id:
+            return "Exam ID is required."
+            
+        exam = exams_collection.find_one({"_id": ObjectId(exam_id)})
+        if not exam:
+            return "Exam not found."
+            
+        return json.dumps({
+            "id": str(exam["_id"]),
+            "title": exam.get("title", "Untitled Exam"),
+            "answer_key": exam.get("answer_key", []),
+            "pages_count": len(exam.get("pages", [])),
+            "created_at": exam.get("created_at").isoformat() if exam.get("created_at") else "Unknown",
+            "created_by": str(exam.get("created_by")) if exam.get("created_by") else "Unknown"
+        }, ensure_ascii=False)
+    except Exception as e:
+        return f"Error getting exam: {str(e)}"
 
 def tool_list_submissions(exam_id=None):
-    query = {"exam_id": ObjectId(exam_id)} if exam_id else {}
-    subs = list(submissions_collection.find(query).sort([("created_at", -1)]))
-    return [
-        {
-            "id": str(s["_id"]),
-            "student": s.get("student_name", "Unknown"),
-            "score": s.get("score"),
-        }
-        for s in subs
-    ]
-
-def tool_rag_search(query, user_id, top_k=3):
-    """RAG as a tool: returns relevant course chunks"""
-    chunks = list(course_materials_collection.find(
-        {"user_id": ObjectId(user_id)},
-        {"text": 1, "embedding": 1}
-    ))
-    
-    if not chunks:
-        return "No course material uploaded. Use /ai/upload-course first."
-    
-    query_vec = EMBEDDING_MODEL.encode(query)
-    similarities = []
-    for chunk in chunks:
-        doc_vec = np.array(chunk["embedding"])
-        sim = np.dot(query_vec, doc_vec) / (np.linalg.norm(query_vec) * np.linalg.norm(doc_vec))
-        similarities.append((sim, chunk["text"]))
-    
-    similarities.sort(key=lambda x: x[0], reverse=True)
-    top_texts = [text for _, text in similarities[:top_k]]
-    return "\n\n---\n\n".join(top_texts)
-
-def tool_generate_exam(topic, user_id, num_questions=5):
-    """Generate exam using RAG + existing exams"""
-    # Get relevant course material
-    course_context = tool_rag_search(f"Key concepts about {topic}", user_id, top_k=2)
-    
-    # Get similar past exams
-    past_exams = list(exams_collection.find(
-        {"created_by": ObjectId(user_id)},
-        {"title": 1, "answer_key": 1}
-    ).sort([("created_at", -1)]).limit(2))
-    
-    exam_examples = ""
-    for ex in past_exams:
-        for q in ex.get("answer_key", [])[:2]:
-            exam_examples += f"- {q.get('question', 'N/A')}\n  Answer: {q.get('expected_answer', 'N/A')}\n"
-
-    prompt = f"""
-Generate a {num_questions}-question exam on: {topic}
-
-COURSE CONTEXT:
-{course_context}
-
-PAST EXAM EXAMPLES:
-{exam_examples}
-
-Rules:
-- Mix MCQs and short answer
-- For MCQs, provide 4 options (a, b, c, d)
-- Return JSON: {{"questions": [{{"type": "mcq"|"text", "question": "...", "options": [...], "answer": "..."}}]}}
-"""
-    
-    headers = {"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": TOGETHER_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 800,
-    }
-    
-    import requests
-    response = requests.post(TOGETHER_ENDPOINT, headers=headers, json=payload, timeout=30)
-    response.raise_for_status()
-    raw = response.json()["choices"][0]["message"]["content"]
-    
-    # Extract JSON
+    """List submissions for an exam"""
     try:
-        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-    except:
-        pass
-    return {"error": "Failed to generate exam", "raw": raw}
+        if not exam_id:
+            latest = exams_collection.find_one(sort=[("created_at", -1)])
+            if not latest:
+                return "No exams found to list submissions for."
+            exam_id = str(latest["_id"])
+            
+        subs = list(submissions_collection.find(
+            {"exam_id": ObjectId(exam_id)}
+        ).sort([("created_at", -1)]))
+        
+        if not subs:
+            return "No submissions found for this exam."
+            
+        result = []
+        for s in subs:
+            result.append({
+                "id": str(s["_id"]),
+                "student": s.get("student_name", "Unknown Student"),
+                "score": s.get("score", "N/A"),
+                "feedback": s.get("feedback", "")[:100] + ("..." if len(s.get("feedback", "")) > 100 else ""),
+                "created_at": s.get("created_at").isoformat() if s.get("created_at") else "Unknown"
+            })
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return f"Error listing submissions: {str(e)}"
 
-# ---------- ReAct Agent ----------
+# ---------- RAG TOOL ----------
+def tool_search_rag(query: str, user_id: str) -> str:
+    """Search RAG index for relevant context"""
+    try:
+        docs = []
+        courses = courses_collection.find({"user_id": ObjectId(user_id)})
+        
+        for course in courses:
+            content = course.get("text", "")
+            if not content.strip():
+                continue
+            embedding = EMBEDDING_MODEL.encode(content).tolist()
+            docs.append({
+                "content": content,
+                "course_id": str(course["_id"]),
+                "embedding": embedding,
+                "type": "course_material",
+                "name": course.get("name", "Unnamed Course")
+            })
+
+        if not docs:
+            return "No course material found. Please upload some PDFs first."
+
+        query_vec = EMBEDDING_MODEL.encode(query)
+        similarities = []
+        for doc in docs:
+            doc_vec = np.array(doc["embedding"])
+            sim = np.dot(query_vec, doc_vec) / (np.linalg.norm(query_vec) * np.linalg.norm(doc_vec))
+            similarities.append((sim, doc["content"], doc["name"]))
+        
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        top_docs = [f"📄 From '{name}':\n{content}" for _, content, name in similarities[:3]]
+        return "\n\n".join(top_docs)
+    except Exception as e:
+        return f"Error searching RAG: {str(e)}"
+
+# ---------- ReAct AGENT ----------
 def run_react_agent(user_query, user_id, session_id):
-    system_prompt = """
-You are ProfMate, an AI teaching assistant with these tools:
+    history = SESSION_MEMORY.get(session_id, [])
+    chat_history_lines = []
+    for h in history[-2:]:
+        line = f"User: {h['query']}"
+        if h.get('response'):
+            line += f"\nAssistant: {h['response']}"
+        chat_history_lines.append(line)
+    chat_history_str = "\n".join(chat_history_lines)
+
+    system_prompt = f"""
+You are ProfMate, an AI teaching assistant. Use the following tools to answer questions:
 
 TOOL SPECS:
-- list_exams() → [exams]
-- get_exam(exam_id) → exam details
-- list_submissions(exam_id?) → [submissions]
-- rag_search(query) → relevant course material
-- generate_exam(topic, num_questions=5) → new exam
+- list_exams(): Returns [{{"id": str, "title": str, "created_at": str}}]
+- get_exam(exam_id: str): Returns exam details including title, answer key, pages count
+- list_submissions(exam_id: str = None): Returns [{{"id": str, "student": str, "score": float, "feedback": str}}]
+- search_rag(query: str): Searches uploaded course material for relevant context
 
 RULES:
-1. Think step by step.
-2. Call ONE tool in JSON: {"tool": "tool_name", "args": {...}}
-3. Use observation to answer.
-4. For exam generation, ALWAYS call rag_search first to get course context.
-"""
-    
+1. First, think step by step (Thought).
+2. If you need data, call ONE tool in JSON format ONLY: {{"tool": "tool_name", "args": {{...}}}}
+3. Do NOT add any other text before or after the JSON.
+4. If no tool is needed, answer directly.
+5. When returning tool results, make them human-readable and concise.
+
+CHAT HISTORY:
+{chat_history_str}
+""".strip()
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_query},
     ]
-    
-    headers = {"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": TOGETHER_MODEL,
-        "messages": messages,
-        "temperature": 0.0,
-        "max_tokens": 200,
-    }
-    
-    import requests
-    response = requests.post(TOGETHER_ENDPOINT, headers=headers, json=payload, timeout=30)
-    first_response = response.json()["choices"][0]["message"]["content"].strip()
-    
-    # Parse tool call
+
+    try:
+        response = groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=messages,
+            temperature=0.0,
+            max_tokens=200,
+        )
+        first_response = response.choices[0].message.content.strip()
+    except Exception as e:
+        raise Exception(f"Groq error (step 1): {str(e)}")
+
+    # Extract JSON from response (handle cases where LLM adds text)
     tool_call = None
     try:
-        if first_response.strip().startswith("{"):
-            tool_call = json.loads(first_response)
-    except:
+        # Find JSON object in the response
+        import re
+        json_match = re.search(r'\{.*\}', first_response, re.DOTALL)
+        if json_match:
+            tool_call = json.loads(json_match.group())
+    except Exception as e:
+        print(f"JSON parsing error: {e}")
         pass
 
+    final_answer = ""
     if tool_call and "tool" in tool_call:
         tool_name = tool_call["tool"]
         args = tool_call.get("args", {})
-        observation = "Tool failed."
+        observation = "Tool execution failed."
         
         try:
             if tool_name == "list_exams":
-                observation = json.dumps(tool_list_exams(user_id))
+                observation = tool_list_exams(user_id)
             elif tool_name == "get_exam":
-                observation = json.dumps(tool_get_exam(args.get("exam_id")))
+                exam_id = args.get("exam_id")
+                if exam_id:
+                    observation = tool_get_exam(exam_id)
+                else:
+                    observation = "Missing exam_id argument."
             elif tool_name == "list_submissions":
-                observation = json.dumps(tool_list_submissions(args.get("exam_id")))
-            elif tool_name == "rag_search":
-                observation = tool_rag_search(args.get("query", ""), user_id)
-            elif tool_name == "generate_exam":
-                topic = args.get("topic", "general")
-                num = args.get("num_questions", 5)
-                observation = json.dumps(tool_generate_exam(topic, user_id, num))
+                exam_id = args.get("exam_id")
+                observation = tool_list_submissions(exam_id)
+            elif tool_name == "search_rag":
+                query = args.get("query", "")
+                if query:
+                    observation = tool_search_rag(query, user_id)
+                else:
+                    observation = "Missing query argument."
             else:
                 observation = f"Unknown tool: {tool_name}"
         except Exception as e:
             observation = f"Error: {str(e)}"
 
-        # Final answer
-        messages.extend([
-            {"role": "assistant", "content": first_response},
-            {"role": "user", "content": f"Observation: {observation}"},
-            {"role": "user", "content": "Now give the final answer."}
-        ])
-        payload["messages"] = messages
-        payload["max_tokens"] = 500
-        response = requests.post(TOGETHER_ENDPOINT, headers=headers, json=payload, timeout=30)
-        final_answer = response.json()["choices"][0]["message"]["content"].strip()
+        # Add tool call and observation to messages
+        messages.append({"role": "assistant", "content": first_response})
+        messages.append({"role": "user", "content": f"Observation: {observation}"})
+        messages.append({"role": "user", "content": "Now give the final answer in a clear, concise, human-readable format."})
+
+        try:
+            response = groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=500,
+            )
+            final_answer = response.choices[0].message.content.strip()
+        except Exception as e:
+            raise Exception(f"Groq error (step 2): {str(e)}")
+
+        SESSION_MEMORY[session_id] = history[-4:] + [{"query": user_query, "response": final_answer}]
     else:
         final_answer = first_response
+        SESSION_MEMORY[session_id] = history[-4:] + [{"query": user_query, "response": final_answer}]
 
     return final_answer
 
-# ---------- Routes ----------
-@bp_ai.route("/ai/agent", methods=["POST"])
+# ---------- ROUTES ----------
+@bp_ai.route("/agent", methods=["POST"])
 @cross_origin()
 def agent():
     user, err, code = _require_auth()
@@ -282,3 +298,55 @@ def agent():
         return jsonify({"handled": True, "reply": reply})
     except Exception as e:
         return jsonify({"handled": True, "reply": f"Agent error: {str(e)}"}), 500
+
+@bp_ai.route("/upload-course", methods=["POST"])
+@cross_origin()
+def upload_course():
+    user, err, code = _require_auth()
+    if err:
+        return err, code
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and file.filename.endswith('.pdf'):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+
+        # Read PDF content (you'll need to install pdfplumber or PyPDF2)
+        try:
+            import pdfplumber
+            text = ""
+            with pdfplumber.open(filepath) as pdf:
+                for page in pdf.pages:
+                    text += page.extract_text() + "\n"
+        except ImportError:
+            text = "PDF text extraction requires pdfplumber. Install with: pip install pdfplumber"
+
+        # Save to MongoDB
+        course_doc = {
+            "user_id": ObjectId(user["sub"]),
+            "name": filename,
+            "text": text,
+            "uploaded_at": datetime.utcnow(),
+            "filepath": filepath
+        }
+        courses_collection.insert_one(course_doc)
+
+        return jsonify({
+            "message": f"File '{filename}' uploaded and processed successfully",
+            "path": filepath,
+            "chars": len(text)
+        }), 200
+    else:
+        return jsonify({"error": "Only PDF files are allowed"}), 400
+
+@bp_ai.route("/chat", methods=["POST"])
+@cross_origin()
+def chat():
+    return jsonify({"error": "Use /ai/agent for agent interactions"}), 400

@@ -1,10 +1,8 @@
-// src/Components/ProfChat/ProfChat.jsx
 import React, { useEffect, useRef, useState } from "react";
 import "./ProfChat.css";
-import robotIcon from "../../images/robot.png";
-import { getAuth } from "../../api"; // For auth header
+import {getAuth} from "../../JWT/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5006";
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5006";
 
 export default function ProfChat({ sessionId = "prof-global" }) {
   const [open, setOpen] = useState(false);
@@ -72,6 +70,31 @@ export default function ProfChat({ sessionId = "prof-global" }) {
     }
   };
 
+  const extractTextFromFile = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      // For text files, read as text
+      if (file.type === 'text/plain' || file.name.endsWith('.txt') || 
+          file.type === 'text/markdown' || file.name.endsWith('.md') ||
+          file.type === 'text/html' || file.name.endsWith('.html')) {
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error("Failed to read text file"));
+        reader.readAsText(file);
+      }
+      // For PDFs, we'll send the file as binary and let backend handle extraction
+      else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        // Read as ArrayBuffer to send binary data
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error("Failed to read PDF file"));
+        reader.readAsArrayBuffer(file);
+      }
+      else {
+        reject(new Error("Unsupported file type"));
+      }
+    });
+  };
+
   const handleUploadCourse = async () => {
     if (!courseFile || !courseName.trim()) {
       alert("Please select a file and enter a course name.");
@@ -79,23 +102,55 @@ export default function ProfChat({ sessionId = "prof-global" }) {
     }
 
     setBusy(true);
-    const formData = new FormData();
     
-    // Read file as text
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const text = e.target.result;
-        
+    try {
+      const fileContent = await extractTextFromFile(courseFile);
+      
+      // Check if it's a PDF (ArrayBuffer) or text (string)
+      const isPdf = courseFile.type === 'application/pdf' || courseFile.name.endsWith('.pdf');
+      
+      if (isPdf) {
+        // Send PDF as binary data
+        const blob = new Blob([fileContent], { type: 'application/pdf' });
+        const formData = new FormData();
+        formData.append('file', blob, courseFile.name);
+        formData.append('name', courseName.trim());
+
         const response = await fetch(`${API_BASE}/ai/upload-course`, {
           method: "POST",
           headers: { 
             ...getAuthHeader(),
-            // Note: We're sending JSON, not form data
+            // Don't set Content-Type for FormData
+          },
+          body: formData,
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          setMessages((prev) => [
+            ...prev,
+            { 
+              role: "assistant", 
+              text: `✅ ${result.message}\n\nYou can now ask me to generate exams based on this material!` 
+            },
+          ]);
+          setShowUpload(false);
+          setCourseFile(null);
+          setCourseName("");
+        } else {
+          throw new Error(result.error || "Upload failed");
+        }
+      } else {
+        // Send text as JSON
+        const response = await fetch(`${API_BASE}/ai/upload-course`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
           },
           body: JSON.stringify({
             name: courseName.trim(),
-            text: text,
+            text: fileContent,
           }),
         });
 
@@ -114,16 +169,15 @@ export default function ProfChat({ sessionId = "prof-global" }) {
         } else {
           throw new Error(result.error || "Upload failed");
         }
-      } catch (err) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", text: `❌ Upload error: ${err.message}` },
-        ]);
-      } finally {
-        setBusy(false);
       }
-    };
-    reader.readAsText(courseFile);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: `❌ Upload error: ${err.message}` },
+      ]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -163,7 +217,7 @@ export default function ProfChat({ sessionId = "prof-global" }) {
           <input
             type="file"
             accept=".txt,.pdf,.md"
-            onChange={(e) => setCourseFile(e.target.files[0])}
+            onChange={(e) => setCourseFile(e.target.files?.[0] || null)}
             disabled={busy}
           />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -226,7 +280,7 @@ export default function ProfChat({ sessionId = "prof-global" }) {
         aria-label="Open ProfMate"
         title="Open ProfMate"
       >
-        <img src={robotIcon} alt="ProfMate" className="pcb-fab-img" />
+        <img src="/ProfChat/robot.png" alt="ProfMate" className="pcb-fab-img" />
       </button>
 
       {open && (

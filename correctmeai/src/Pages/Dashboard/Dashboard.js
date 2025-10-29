@@ -21,10 +21,7 @@ import {
 import "./Dashboard.css";
 
 /* ====== Config ====== */
-const API_BASE =
-    import.meta?.env?.VITE_API_BASE ||
-    process.env.REACT_APP_API_BASE ||
-    "http://localhost:5006";
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5006";
 
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"];
 

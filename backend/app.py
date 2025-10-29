@@ -1,12 +1,12 @@
+# app.py — MAIN BACKEND (auth + exams) on port 5006
 import os
 from datetime import datetime, timedelta
 from bson import ObjectId
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from pymongo import MongoClient, DESCENDING
-from dotenv import load_dotenv  # ← NEW
+from dotenv import load_dotenv
 
-# Load environment variables from .env
 load_dotenv()
 
 # ---------- DB ----------
@@ -21,7 +21,6 @@ exams = db["exams"]
 submissions = db["submissions"]
 users = db["users"]
 
-# Helpful indexes (safe if already exist)
 users.create_index("email", unique=True)
 exams.create_index([("created_at", DESCENDING), ("_id", DESCENDING)])
 exams.create_index("created_by")
@@ -29,7 +28,7 @@ exams.create_index("created_by")
 # ---------- APP / CORS ----------
 app = Flask(__name__)
 
-# Import AI blueprint (assumes it uses JWT_SECRET from env or shared auth)
+# Import and register AI blueprint from ai_assistant.py
 from ai_assistant import bp_ai
 app.register_blueprint(bp_ai, url_prefix="/ai")
 
@@ -53,7 +52,6 @@ def _add_cors_headers(resp):
     resp.headers.setdefault("Access-Control-Allow-Credentials", "true")
     return resp
 
-# Preflight handlers
 @app.route("/api/<path:_any>", methods=["OPTIONS"])
 @app.route("/ListExams", methods=["OPTIONS"])
 @app.route("/ai/<path:_any>", methods=["OPTIONS"])
@@ -61,10 +59,9 @@ def _preflight(_any=None):
     return ("", 200)
 
 # ---------- AUTH ----------
-# Pass JWT_SECRET and db to auth module (update auth.py accordingly — see note below)
 from auth import make_auth_blueprint
 auth_bp, require_auth, require_role = make_auth_blueprint(db, jwt_secret=JWT_SECRET)
-app.register_blueprint(auth_bp, url_prefix="/api/auth")
+app.register_blueprint(auth_bp) 
 
 # ---------- HELPERS ----------
 def _as_oid(s):
@@ -86,7 +83,7 @@ def _exam_summary(d: dict):
         "createdAt": d.get("created_at").isoformat() + "Z" if d.get("created_at") else None,
     }
 
-# ---------- HEALTH & ROUTES ----------
+# ---------- ROUTES ----------
 @app.get("/health")
 def health():
     return jsonify({"ok": True})
@@ -138,7 +135,6 @@ def api_list_exams():
 @app.get("/ListExams")
 @require_auth
 def list_exams():
-    # Same as /api/exams — kept for legacy compatibility
     return api_list_exams()
 
 @app.get("/api/exams/<eid>")
@@ -147,11 +143,9 @@ def api_get_exam(eid):
     oid = _as_oid(eid)
     if not oid:
         return jsonify({"error": "invalid id"}), 400
-
     doc = exams.find_one({"_id": oid}, {"title": 1, "created_by": 1})
     if not doc:
         return jsonify({"error": "not found"}), 404
-
     if g.user.get("role") != "admin":
         owner_ok = (
             doc.get("created_by") == _as_oid(g.user.get("sub"))
@@ -160,7 +154,6 @@ def api_get_exam(eid):
         )
         if not owner_ok:
             return jsonify({"error": "forbidden"}), 403
-
     return jsonify({"_id": str(doc["_id"]), "title": doc.get("title")}), 200
 
 # ---------- DASHBOARD ----------
@@ -278,7 +271,6 @@ def api_dashboard_summary():
         "topStudents": top_students,
     }), 200
 
-# ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5006"))
     app.run(host="0.0.0.0", port=port, debug=True)

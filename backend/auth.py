@@ -1,3 +1,4 @@
+# auth.py — Email/Password Auth Only (No Google)
 import time
 import functools
 import os
@@ -7,10 +8,6 @@ from pymongo.errors import DuplicateKeyError
 from flask_cors import cross_origin
 import jwt
 import bcrypt
-
-# Google Identity Services
-from google.oauth2 import id_token as google_id_token
-from google.auth.transport import requests as grequests
 
 def _now():
     return datetime.utcnow()
@@ -91,61 +88,6 @@ def make_auth_blueprint(db, jwt_secret: str):
                 return fn(*a, **kw)
             return wrapper
         return deco
-
-    @bp.route("/api/auth/google", methods=["POST", "OPTIONS"])
-    @cross_origin(**_cors_args())
-    def login_with_google():
-        if request.method == "OPTIONS":
-            return ("", 204)
-
-        j = request.get_json(silent=True) or {}
-        id_tok = j.get("idToken")
-        if not id_tok:
-            return jsonify({"error": "missing idToken"}), 400
-
-        GOOGLE_CLIENT_ID = os.getenv(
-            "GOOGLE_CLIENT_ID",
-            "726239267818-5db8k7sjccnur2oam8egk3k5r7carejj.apps.googleusercontent.com"
-        )
-
-        try:
-            payload = google_id_token.verify_oauth2_token(
-                id_tok, grequests.Request(), GOOGLE_CLIENT_ID
-            )
-
-            email = payload.get("email")
-            if not email or not payload.get("email_verified"):
-                return jsonify({"error": "unverified Google account"}), 401
-
-            u = users.find_one({"email": email})
-            if not u:
-                u = {
-                    "email": email,
-                    "name": payload.get("name") or email.split("@")[0],
-                    "role": "student",
-                    "avatar": payload.get("picture"),
-                    "provider": "google",
-                    "created_at": _now(),
-                }
-                ins = users.insert_one(u)
-                u["_id"] = ins.inserted_id
-
-            token = _issue_jwt(u, jwt_secret, JWT_TTL_HRS)
-            return jsonify({
-                "token": token,
-                "user": {
-                    "id": str(u["_id"]),
-                    "email": u["email"],
-                    "name": u.get("name"),
-                    "role": u.get("role", "student"),
-                    "avatar": u.get("avatar"),
-                },
-            }), 200
-
-        except ValueError:
-            return jsonify({"error": "invalid Google token"}), 401
-        except Exception:
-            return jsonify({"error": "Google login failed"}), 500
 
     @bp.route("/api/auth/register", methods=["POST", "OPTIONS"])
     @cross_origin(**_cors_args())

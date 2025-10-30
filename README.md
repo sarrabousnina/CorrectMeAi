@@ -54,7 +54,7 @@ Built with a **React.js frontend**, **Flask backend**, and **MongoDB**, CorrectM
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/CorrectMeAI.git
+   git clone https://github.com/sarrabousnina/CorrectMeAi.git
    cd CorrectMeAI
    ```
 

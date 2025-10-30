@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 from datetime import datetime
 from bson import ObjectId
@@ -15,7 +16,7 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 
 # DB
-from mongo import exams_collection, submissions_collection, courses_collection  # ← NEW: Add courses collection
+from mongo import exams_collection, submissions_collection, courses_collection
 
 # Config
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -26,14 +27,12 @@ if not all([JWT_SECRET, GROQ_API_KEY]):
 
 # Groq client
 groq_client = Groq(api_key=GROQ_API_KEY)
-
-# Use a fast, free Groq model
 GROQ_MODEL = "llama-3.1-8b-instant"
 
 # Embedding model
 EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Memory store
+# Memory store: {session_id: [{"query": "...", "response": "..."}, ...]}
 SESSION_MEMORY = {}
 
 # Upload config
@@ -60,16 +59,13 @@ def _require_auth():
 
 # ---------- TOOLS ----------
 def tool_list_exams(user_id):
-    """List exams owned by user"""
     try:
         exams = list(exams_collection.find(
             {"created_by": ObjectId(user_id)},
             {"title": 1, "created_at": 1}
         ).sort([("created_at", -1)]))
-        
         if not exams:
             return "No exams found."
-            
         result = []
         for exam in exams:
             result.append({
@@ -82,15 +78,12 @@ def tool_list_exams(user_id):
         return f"Error listing exams: {str(e)}"
 
 def tool_get_exam(exam_id):
-    """Get exam details"""
     try:
         if not exam_id:
             return "Exam ID is required."
-            
         exam = exams_collection.find_one({"_id": ObjectId(exam_id)})
         if not exam:
             return "Exam not found."
-            
         return json.dumps({
             "id": str(exam["_id"]),
             "title": exam.get("title", "Untitled Exam"),
@@ -103,21 +96,15 @@ def tool_get_exam(exam_id):
         return f"Error getting exam: {str(e)}"
 
 def tool_list_submissions(exam_id=None):
-    """List submissions for an exam"""
     try:
         if not exam_id:
             latest = exams_collection.find_one(sort=[("created_at", -1)])
             if not latest:
                 return "No exams found to list submissions for."
             exam_id = str(latest["_id"])
-            
-        subs = list(submissions_collection.find(
-            {"exam_id": ObjectId(exam_id)}
-        ).sort([("created_at", -1)]))
-        
+        subs = list(submissions_collection.find({"exam_id": ObjectId(exam_id)}).sort([("created_at", -1)]))
         if not subs:
             return "No submissions found for this exam."
-            
         result = []
         for s in subs:
             result.append({
@@ -131,13 +118,10 @@ def tool_list_submissions(exam_id=None):
     except Exception as e:
         return f"Error listing submissions: {str(e)}"
 
-# ---------- RAG TOOL ----------
 def tool_search_rag(query: str, user_id: str) -> str:
-    """Search RAG index for relevant context"""
     try:
         docs = []
         courses = courses_collection.find({"user_id": ObjectId(user_id)})
-        
         for course in courses:
             content = course.get("text", "")
             if not content.strip():
@@ -150,17 +134,14 @@ def tool_search_rag(query: str, user_id: str) -> str:
                 "type": "course_material",
                 "name": course.get("name", "Unnamed Course")
             })
-
         if not docs:
             return "No course material found. Please upload some PDFs first."
-
         query_vec = EMBEDDING_MODEL.encode(query)
         similarities = []
         for doc in docs:
             doc_vec = np.array(doc["embedding"])
             sim = np.dot(query_vec, doc_vec) / (np.linalg.norm(query_vec) * np.linalg.norm(doc_vec))
             similarities.append((sim, doc["content"], doc["name"]))
-        
         similarities.sort(key=lambda x: x[0], reverse=True)
         top_docs = [f"📄 From '{name}':\n{content}" for _, content, name in similarities[:3]]
         return "\n\n".join(top_docs)
@@ -169,13 +150,18 @@ def tool_search_rag(query: str, user_id: str) -> str:
 
 # ---------- ReAct AGENT ----------
 def run_react_agent(user_query, user_id, session_id):
-    history = SESSION_MEMORY.get(session_id, [])
+    # Ensure session exists in memory
+    if session_id not in SESSION_MEMORY:
+        SESSION_MEMORY[session_id] = []
+    
+    history = SESSION_MEMORY[session_id]
+
+    # Build chat history from last 10 interactions
     chat_history_lines = []
-    for h in history[-2:]:
-        line = f"User: {h['query']}"
+    for h in history[-10:]:
+        chat_history_lines.append(f"User: {h['query']}")
         if h.get('response'):
-            line += f"\nAssistant: {h['response']}"
-        chat_history_lines.append(line)
+            chat_history_lines.append(f"Assistant: {h['response']}")
     chat_history_str = "\n".join(chat_history_lines)
 
     system_prompt = f"""
@@ -191,7 +177,7 @@ RULES:
 1. First, think step by step (Thought).
 2. If you need data, call ONE tool in JSON format ONLY: {{"tool": "tool_name", "args": {{...}}}}
 3. Do NOT add any other text before or after the JSON.
-4. If no tool is needed, answer directly.
+4. If no tool is needed and you can answer directly, do so clearly.
 5. When returning tool results, make them human-readable and concise.
 
 CHAT HISTORY:
@@ -214,48 +200,38 @@ CHAT HISTORY:
     except Exception as e:
         raise Exception(f"Groq error (step 1): {str(e)}")
 
-    # Extract JSON from response (handle cases where LLM adds text)
+    # Try to extract tool call
     tool_call = None
     try:
-        # Find JSON object in the response
-        import re
         json_match = re.search(r'\{.*\}', first_response, re.DOTALL)
         if json_match:
             tool_call = json.loads(json_match.group())
-    except Exception as e:
-        print(f"JSON parsing error: {e}")
-        pass
+    except Exception:
+        pass  # Not a valid tool call
 
     final_answer = ""
-    if tool_call and "tool" in tool_call:
+    if tool_call and isinstance(tool_call, dict) and "tool" in tool_call:
         tool_name = tool_call["tool"]
         args = tool_call.get("args", {})
         observation = "Tool execution failed."
-        
+
         try:
             if tool_name == "list_exams":
                 observation = tool_list_exams(user_id)
             elif tool_name == "get_exam":
                 exam_id = args.get("exam_id")
-                if exam_id:
-                    observation = tool_get_exam(exam_id)
-                else:
-                    observation = "Missing exam_id argument."
+                observation = tool_get_exam(exam_id) if exam_id else "Missing exam_id argument."
             elif tool_name == "list_submissions":
                 exam_id = args.get("exam_id")
                 observation = tool_list_submissions(exam_id)
             elif tool_name == "search_rag":
                 query = args.get("query", "")
-                if query:
-                    observation = tool_search_rag(query, user_id)
-                else:
-                    observation = "Missing query argument."
+                observation = tool_search_rag(query, user_id) if query else "Missing query argument."
             else:
                 observation = f"Unknown tool: {tool_name}"
         except Exception as e:
             observation = f"Error: {str(e)}"
 
-        # Add tool call and observation to messages
         messages.append({"role": "assistant", "content": first_response})
         messages.append({"role": "user", "content": f"Observation: {observation}"})
         messages.append({"role": "user", "content": "Now give the final answer in a clear, concise, human-readable format."})
@@ -271,10 +247,29 @@ CHAT HISTORY:
         except Exception as e:
             raise Exception(f"Groq error (step 2): {str(e)}")
 
-        SESSION_MEMORY[session_id] = history[-4:] + [{"query": user_query, "response": final_answer}]
     else:
         final_answer = first_response
-        SESSION_MEMORY[session_id] = history[-4:] + [{"query": user_query, "response": final_answer}]
+        unclear_phrases = [
+            "don't know", "do not know", "not sure", "unclear", "not clear",
+            "cannot answer", "can't answer", "no information", "not enough",
+            "i am not", "i'm not", "unable to", "sorry", "apologies"
+        ]
+        if any(phrase in final_answer.lower() for phrase in unclear_phrases) or len(final_answer.split()) < 4:
+            final_answer = (
+                "I'm here to help! You can ask me things like:\n"
+                "• \"List my exams\"\n"
+                "• \"Show me the latest submission\"\n"
+                "• \"What’s in my course material about calculus?\"\n"
+                "• \"Get details for exam XYZ\"\n\n"
+                "Just let me know what you'd like to do!"
+            )
+
+    # ✅ Store the new interaction and keep only last 10
+    SESSION_MEMORY[session_id].append({
+        "query": user_query,
+        "response": final_answer
+    })
+    SESSION_MEMORY[session_id] = SESSION_MEMORY[session_id][-10:]
 
     return final_answer
 
@@ -318,7 +313,6 @@ def upload_course():
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
 
-        # Read PDF content (you'll need to install pdfplumber or PyPDF2)
         try:
             import pdfplumber
             text = ""
@@ -328,7 +322,6 @@ def upload_course():
         except ImportError:
             text = "PDF text extraction requires pdfplumber. Install with: pip install pdfplumber"
 
-        # Save to MongoDB
         course_doc = {
             "user_id": ObjectId(user["sub"]),
             "name": filename,
